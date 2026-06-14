@@ -1,0 +1,39 @@
+name: Build and Publish NDI Director
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build & Publish
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore Dependencies
+      run: dotnet restore src/NdiDirector.csproj
+
+    - name: Build
+      run: dotnet build src/NdiDirector.csproj -c Release --no-restore
+
+    - name: Publish
+      run: dotnet publish src/NdiDirector.csproj -c Release -o dist --no-restore
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: NdiDirector-dist
+        path: dist/
+        retention-days: 30
