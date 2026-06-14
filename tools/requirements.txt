@@ -1,0 +1,4 @@
+# Dependências do gerador de feeds NDI para testes
+ndi-python>=6.0
+opencv-python>=4.8
+numpy>=1.24

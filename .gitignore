@@ -1,0 +1,55 @@
+# ========================================
+# NDI Director - .gitignore
+# ========================================
+
+# ----- .NET / C# Build Artifacts -----
+src/bin/
+src/obj/
+dist/
+
+# ----- IDE -----
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln.docstates
+**/Properties/launchSettings.json
+
+# ----- Logs -----
+*.log
+
+# ----- Arquivos temporários de gravação -----
+_ndi_temp_*
+
+# ----- Vídeos de teste (arquivos grandes na pasta tools/) -----
+tools/*.webm
+tools/*.mp4
+tools/*.mkv
+tools/*.avi
+tools/*.mov
+tools/*.wmv
+tools/*.flv
+tools/*.ts
+tools/*.m4v
+
+# ----- Python -----
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ----- OS -----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ----- NuGet -----
+*.nupkg
+**/packages/
+
+# ----- Misc -----
+*.bak
+*.tmp
+*.swp
