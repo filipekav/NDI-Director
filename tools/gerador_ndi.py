@@ -190,26 +190,22 @@ def enviar_feed_ndi(caminho_video: str):
                 elif isinstance(frame, av.AudioFrame) and resampler:
                     resampled_frames = resampler.resample(frame)
                     for res_frame in resampled_frames:
-                        audio_data = res_frame.to_ndarray()  # Shape: (2, no_samples)
-
-                        # Array float32 planar contíguo → view uint8
-                        audio_planar_flat = np.ascontiguousarray(
-                            audio_data.astype(np.float32).flatten()
-                        )
-                        audio_bytes_array = audio_planar_flat.view(np.uint8)
+                        # Garante que o array float32 planar stereo está em ordem contígua
+                        audio_data = res_frame.to_ndarray()  # Shape: (2, no_samples), float32
+                        if not audio_data.flags["C_CONTIGUOUS"]:
+                            audio_data = np.ascontiguousarray(audio_data)
 
                         # Envia o frame de áudio NDI
+                        # O wrapper ndi-python deduz automaticamente no_channels, no_samples
+                        # e channel_stride_in_bytes a partir do array 2D float32
                         audio_frame = ndi.AudioFrameV2()
+                        audio_frame.data = audio_data
                         audio_frame.sample_rate = 48000
-                        audio_frame.no_channels = 2
-                        audio_frame.no_samples = res_frame.samples
-                        audio_frame.channel_stride_in_bytes = res_frame.samples * 4
-                        audio_frame.data = audio_bytes_array
 
                         ndi.send_send_audio_v2(sender, audio_frame)
 
                         # Mantém o buffer vivo na memória
-                        sent_buffers_keepalive.append((audio_frame, audio_bytes_array, audio_planar_flat))
+                        sent_buffers_keepalive.append((audio_frame, audio_data))
                         if len(sent_buffers_keepalive) > 60:
                             sent_buffers_keepalive.pop(0)
 
@@ -218,21 +214,16 @@ def enviar_feed_ndi(caminho_video: str):
                 resampled_frames = resampler.resample(None)
                 for res_frame in resampled_frames:
                     audio_data = res_frame.to_ndarray()
-                    audio_planar_flat = np.ascontiguousarray(
-                        audio_data.astype(np.float32).flatten()
-                    )
-                    audio_bytes_array = audio_planar_flat.view(np.uint8)
+                    if not audio_data.flags["C_CONTIGUOUS"]:
+                        audio_data = np.ascontiguousarray(audio_data)
 
                     audio_frame = ndi.AudioFrameV2()
+                    audio_frame.data = audio_data
                     audio_frame.sample_rate = 48000
-                    audio_frame.no_channels = 2
-                    audio_frame.no_samples = res_frame.samples
-                    audio_frame.channel_stride_in_bytes = res_frame.samples * 4
-                    audio_frame.data = audio_bytes_array
 
                     ndi.send_send_audio_v2(sender, audio_frame)
 
-                    sent_buffers_keepalive.append((audio_frame, audio_bytes_array, audio_planar_flat))
+                    sent_buffers_keepalive.append((audio_frame, audio_data))
                     if len(sent_buffers_keepalive) > 60:
                         sent_buffers_keepalive.pop(0)
 
