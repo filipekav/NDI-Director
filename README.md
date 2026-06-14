@@ -27,7 +27,7 @@ NDI Director/
 │   ├── gerador_ndi.py          # Gerador de feeds NDI a partir de vídeos
 │   └── requirements.txt
 ├── dist/                       # Build de distribuição (gerado)
-├── .gitlab-ci.yml              # Pipeline CI/CD
+├── .github/workflows/build.yml # Workflow do GitHub Actions
 ├── .gitignore
 └── README.md
 ```
@@ -66,18 +66,14 @@ Coloque seus vídeos de teste (`.mp4`, `.webm`, `.mkv`, etc.) dentro da pasta `t
 
 > **Nota:** Os vídeos de teste são ignorados pelo `.gitignore` por serem arquivos grandes.
 
-## CI/CD (GitLab)
+## CI/CD (GitHub Actions)
 
-O projeto inclui um `.gitlab-ci.yml` configurado com dois stages:
+O projeto inclui uma esteira automática do GitHub Actions em `.github/workflows/build.yml`.
 
-| Stage | Descrição | Quando executa |
-|-------|-----------|----------------|
-| `build` | Compila e valida o projeto | Merge Requests e branch principal |
-| `publish` | Gera o pacote `dist/` como artefato baixável | Branch principal e tags |
-
-> **Requisito:** O runner do GitLab precisa ser **Windows** com o .NET 8 SDK instalado, pois o projeto usa `net8.0-windows`.
-
-O artefato `dist/` gerado pelo pipeline fica disponível para download direto no GitLab por 30 dias.
+Sempre que você fizer um push para a branch `main` ou criar uma Pull Request, o GitHub irá:
+1. Compilar o projeto.
+2. Gerar a pasta de publicação `dist/` contendo o executável, templates HTML e fontes.
+3. Disponibilizar a pasta `dist/` como um **artefato zipado** na aba **Actions** para download direto.
 
 ## Funcionalidades
 
