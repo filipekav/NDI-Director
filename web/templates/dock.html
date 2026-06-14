@@ -922,7 +922,7 @@
 
                     let statusText = fonte.erro ? 'Recon...' : (fonte.ativo ? 'Na Cena' : 'Dispo');
                     if (fonte.resolucao) {
-                        statusText += ` (${fonte.resolucao})`;
+                        statusText += ` (${fonte.resolucao}${fonte.fps ? ' @ ' + Math.round(fonte.fps) + ' FPS' : ''})`;
                     }
                     card.querySelector('.status-text').textContent = statusText;
 

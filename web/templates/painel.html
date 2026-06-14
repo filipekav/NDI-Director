@@ -920,7 +920,7 @@
 
                     let statusText = fonte.erro ? 'Reconectando...' : (fonte.ativo ? 'Na Cena' : 'Disponível');
                     if (fonte.resolucao) {
-                        statusText += ` (${fonte.resolucao})`;
+                        statusText += ` (${fonte.resolucao}${fonte.fps ? ' @ ' + (fonte.fps % 1 === 0 ? fonte.fps : fonte.fps.toFixed(2)) + ' FPS' : ''})`;
                     }
                     card.querySelector('.status-text').textContent = statusText;
 

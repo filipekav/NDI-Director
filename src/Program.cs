@@ -402,6 +402,7 @@ public class ReceptorNDI
     public bool Erro { get; private set; }
     public int XRes { get; private set; } = 0;
     public int YRes { get; private set; } = 0;
+    public double Fps { get; private set; } = 0.0;
     
     private IntPtr _pRecv = IntPtr.Zero;
     private Thread? _threadCapture;
@@ -470,10 +471,17 @@ public class ReceptorNDI
                     
                     lock (_frameLock)
                     {
-                        if (XRes != videoFrame.xres || YRes != videoFrame.yres)
+                        double calculoFps = 0.0;
+                        if (videoFrame.frame_rate_D > 0)
+                        {
+                            calculoFps = Math.Round((double)videoFrame.frame_rate_N / videoFrame.frame_rate_D, 2);
+                        }
+
+                        if (XRes != videoFrame.xres || YRes != videoFrame.yres || Fps != calculoFps)
                         {
                             XRes = videoFrame.xres;
                             YRes = videoFrame.yres;
+                            Fps = calculoFps;
                             resAlterada = true;
                         }
 
@@ -559,6 +567,7 @@ public class ReceptorNDI
                     {
                         XRes = 0;
                         YRes = 0;
+                        Fps = 0.0;
                     }
                 }
                 if (Erro != erroAntes)
@@ -580,6 +589,7 @@ public class ReceptorNDI
             _bufferB = null;
             XRes = 0;
             YRes = 0;
+            Fps = 0.0;
         }
         
         if (_pRecv != IntPtr.Zero)
@@ -611,6 +621,7 @@ public class ReceptorNDI
             FrameAtual = null;
             XRes = 0;
             YRes = 0;
+            Fps = 0.0;
         }
     }
 }
@@ -2561,6 +2572,7 @@ class Program
                     string apelido = AppConfig.ApelidosFontes.TryGetValue(n, out var ap) ? ap : "";
                     bool erro = false;
                     string resolucaoVal = "";
+                    double fpsVal = 0.0;
                     
                     if (AppConfig.ReceptoresAtivos.TryGetValue(n, out var rec))
                     {
@@ -2568,6 +2580,7 @@ class Program
                         if (rec.XRes > 0 && rec.YRes > 0)
                         {
                             resolucaoVal = $"{rec.XRes}x{rec.YRes}";
+                            fpsVal = rec.Fps;
                         }
                     }
 
@@ -2622,6 +2635,7 @@ class Program
                         apelido = apelido,
                         erro = erro,
                         resolucao = resolucaoVal,
+                        fps = fpsVal,
                         gravando = gravando,
                         gravando_desde = gravandoDesde,
                         muxing = muxingObj,
