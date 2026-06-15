@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
 using NewTek;
 using NewTek.NDI;
+using System.Collections.Concurrent;
 
 // ===========================================================================
 // CONFIGURAÇÃO E ESTADO GLOBAL
@@ -24,11 +25,11 @@ using NewTek.NDI;
 public static class AppConfig
 {
     public static List<string> FontesNaRede = new();
-    public static Dictionary<string, ReceptorNDI> ReceptoresAtivos = new();
+    public static ConcurrentDictionary<string, ReceptorNDI> ReceptoresAtivos = new();
     public static string?[] OrdemReceptores = new string?[4];
     public static string? FonteHighlight = null;
     public static string? FonteSolo = null;
-    public static Dictionary<string, string> ApelidosFontes = new();
+    public static ConcurrentDictionary<string, string> ApelidosFontes = new();
     public static string CorFundoAtual = "verde";
     public static string FormatoAudioAtual = "aac"; // "pcm" ou "aac"
     public static bool ApagarTemporarios = true;
@@ -40,19 +41,19 @@ public static class AppConfig
     public static int CanvasAlturaHorizontal = 850;
     public static int CanvasLarguraVertical = 550;
     public static int CanvasAlturaVertical = 850;
-    public static Dictionary<string, float> VolumesFontes = new();
-    public static Dictionary<string, int> NiveisVu = new();
+    public static ConcurrentDictionary<string, float> VolumesFontes = new();
+    public static ConcurrentDictionary<string, int> NiveisVu = new();
     
     public static readonly object LockFontes = new();
     public static readonly object LockVolumes = new();
     public static readonly object LockVu = new();
     
     // Gravadores individuais por FFmpeg acelerado por NVIDIA GPU
-    public static Dictionary<string, GravadorFFmpeg> GravadoresAtivos = new();
+    public static ConcurrentDictionary<string, GravadorFFmpeg> GravadoresAtivos = new();
     public static readonly object LockGravadores = new();
     
     // Muxing em andamento
-    public static Dictionary<string, MuxingStatus> ProcessosMuxing = new();
+    public static ConcurrentDictionary<string, MuxingStatus> ProcessosMuxing = new();
     public static readonly object LockMuxing = new();
     public static readonly Dictionary<string, (byte R, byte G, byte B, byte A)> CoresBackground = new()
     {
@@ -307,7 +308,7 @@ public class AudioMixer
                     var chavesVuRemover = AppConfig.NiveisVu.Keys.Where(k => !fontesAtivas.Contains(k)).ToList();
                     foreach (var k in chavesVuRemover)
                     {
-                        AppConfig.NiveisVu.Remove(k);
+                        AppConfig.NiveisVu.TryRemove(k, out _);
                     }
                 }
 
@@ -1409,10 +1410,7 @@ public class GravadorFFmpeg
 
                     Task.Delay(3000).ContinueWith(_ =>
                     {
-                        lock (AppConfig.LockMuxing)
-                        {
-                            AppConfig.ProcessosMuxing.Remove(NomeFonte);
-                        }
+                        AppConfig.ProcessosMuxing.TryRemove(NomeFonte, out var discard);
                         SseManager.NotificarClientes();
                     });
 
@@ -1438,10 +1436,7 @@ public class GravadorFFmpeg
 
                     Task.Delay(6000).ContinueWith(_ =>
                     {
-                        lock (AppConfig.LockMuxing)
-                        {
-                            AppConfig.ProcessosMuxing.Remove(NomeFonte);
-                        }
+                        AppConfig.ProcessosMuxing.TryRemove(NomeFonte, out var discard);
                         SseManager.NotificarClientes();
                     });
                 }
@@ -1454,10 +1449,7 @@ public class GravadorFFmpeg
 
                 Task.Delay(6000).ContinueWith(_ =>
                 {
-                    lock (AppConfig.LockMuxing)
-                    {
-                        AppConfig.ProcessosMuxing.Remove(NomeFonte);
-                    }
+                    AppConfig.ProcessosMuxing.TryRemove(NomeFonte, out var discard);
                     SseManager.NotificarClientes();
                 });
             }
@@ -1559,25 +1551,15 @@ public static class NdiScanner
                     {
                         if (!fontesNaRede.Contains(nomeAtivo))
                         {
-                            if (AppConfig.ReceptoresAtivos.TryGetValue(nomeAtivo, out var rec))
+                            if (AppConfig.ReceptoresAtivos.TryRemove(nomeAtivo, out var rec))
                             {
-                                AppConfig.ReceptoresAtivos.Remove(nomeAtivo);
                                 Task.Run(() => rec.Parar());
                             }
 
                             // Para a gravação associada a este feed, se estiver ativa
-                            GravadorFFmpeg? gravadorParaParar = null;
-                            lock (AppConfig.LockGravadores)
+                            if (AppConfig.GravadoresAtivos.TryRemove(nomeAtivo, out var g))
                             {
-                                if (AppConfig.GravadoresAtivos.TryGetValue(nomeAtivo, out var g))
-                                {
-                                    gravadorParaParar = g;
-                                    AppConfig.GravadoresAtivos.Remove(nomeAtivo);
-                                }
-                            }
-                            if (gravadorParaParar != null)
-                            {
-                                Task.Run(() => gravadorParaParar.Parar());
+                                Task.Run(() => g.Parar());
                             }
 
                             for (int i = 0; i < 4; i++)
@@ -2732,10 +2714,9 @@ class Program
                     if (!estaGravando)
                     {
                         // Se não estiver gravando, podemos desconectar e parar o ReceptorNDI da rede
-                        if (AppConfig.ReceptoresAtivos.TryGetValue(nome, out var rec))
+                        if (AppConfig.ReceptoresAtivos.TryRemove(nome, out var rec))
                         {
                             recParaParar = rec;
-                            AppConfig.ReceptoresAtivos.Remove(nome);
                         }
                         Console.WriteLine($"[-] Desconectado e removido da cena: {nome}");
                     }
@@ -2926,14 +2907,7 @@ class Program
 
             GravadorFFmpeg? gravador = null;
 
-            lock (AppConfig.LockGravadores)
-            {
-                if (AppConfig.GravadoresAtivos.TryGetValue(nome, out var g))
-                {
-                    gravador = g;
-                    AppConfig.GravadoresAtivos.Remove(nome);
-                }
-            }
+            AppConfig.GravadoresAtivos.TryRemove(nome, out gravador);
 
             if (gravador != null)
             {
@@ -2945,11 +2919,7 @@ class Program
                     bool estaNaCena = Array.IndexOf(AppConfig.OrdemReceptores, nome) != -1;
                     if (!estaNaCena)
                     {
-                        if (AppConfig.ReceptoresAtivos.TryGetValue(nome, out var rec))
-                        {
-                            recParaParar = rec;
-                            AppConfig.ReceptoresAtivos.Remove(nome);
-                        }
+                        AppConfig.ReceptoresAtivos.TryRemove(nome, out recParaParar);
                     }
                 }
 
