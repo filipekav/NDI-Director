@@ -36,6 +36,10 @@ public static class AppConfig
     public static bool HabilitarLogsDiagnostico = false; // Silencia por padrão logs verbosos de progresso e sincronia
     public static bool MosaicoVertical = false;
     public static int PaddingMosaico = 20;
+    public static int CanvasLarguraHorizontal = 1920;
+    public static int CanvasAlturaHorizontal = 850;
+    public static int CanvasLarguraVertical = 550;
+    public static int CanvasAlturaVertical = 850;
     public static Dictionary<string, float> VolumesFontes = new();
     public static Dictionary<string, int> NiveisVu = new();
     
@@ -1845,39 +1849,39 @@ public static class VideoEngine
 
         Console.WriteLine("[*] Outputs NDI 'MESA_NDI_MOSAICO', 'MESA_NDI_VERTICAL' e 'MESA_NDI_AUDIO' inicializados.");
 
+        int currentW = AppConfig.CanvasLarguraHorizontal;
+        int currentH = AppConfig.CanvasAlturaHorizontal;
+
+        int currentWV = AppConfig.CanvasLarguraVertical;
+        int currentHV = AppConfig.CanvasAlturaVertical;
+
         var videoFrame = new NDIlib.video_frame_v2_t
         {
-            xres = 1920,
-            yres = 850,
+            xres = currentW,
+            yres = currentH,
             FourCC = NDIlib.FourCC_type_e.FourCC_type_BGRA,
-            line_stride_in_bytes = 1920 * 4,
+            line_stride_in_bytes = currentW * 4,
             frame_rate_N = 30000,
             frame_rate_D = 1001,
-            picture_aspect_ratio = 1920f / 850f,
+            picture_aspect_ratio = (float)currentW / currentH,
             frame_format_type = NDIlib.frame_format_type_e.frame_format_type_progressive
         };
 
         var videoFrameV = new NDIlib.video_frame_v2_t
         {
-            xres = 550,
-            yres = 850,
+            xres = currentWV,
+            yres = currentHV,
             FourCC = NDIlib.FourCC_type_e.FourCC_type_BGRA,
-            line_stride_in_bytes = 550 * 4,
+            line_stride_in_bytes = currentWV * 4,
             frame_rate_N = 30000,
             frame_rate_D = 1001,
-            picture_aspect_ratio = 550f / 850f,
+            picture_aspect_ratio = (float)currentWV / currentHV,
             frame_format_type = NDIlib.frame_format_type_e.frame_format_type_progressive
         };
 
-        const int W = 1920;
-        const int H = 850;
-
-        const int WV = 550;
-        const int HV = 850;
-
         // Inicializa os canvas estáticos persistentes
-        _canvasPrincipal = new Mat(H, W, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
-        _canvasVertical = new Mat(HV, WV, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
+        _canvasPrincipal = new Mat(currentH, currentW, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
+        _canvasVertical = new Mat(currentHV, currentWV, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
 
         IntPtr pAudioBufferNativo = Marshal.AllocHGlobal(AudioMixer.TamanhoBloco * AudioMixer.CanaisSaida * sizeof(float));
 
@@ -1885,6 +1889,36 @@ public static class VideoEngine
         {
             var startTime = DateTime.Now;
             int pad = AppConfig.PaddingMosaico;
+
+            // Verifica se a resolução mudou dinamicamente
+            if (AppConfig.CanvasLarguraHorizontal != currentW || AppConfig.CanvasAlturaHorizontal != currentH)
+            {
+                currentW = AppConfig.CanvasLarguraHorizontal;
+                currentH = AppConfig.CanvasAlturaHorizontal;
+                _canvasPrincipal?.Dispose();
+                _canvasPrincipal = new Mat(currentH, currentW, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
+                
+                videoFrame.xres = currentW;
+                videoFrame.yres = currentH;
+                videoFrame.line_stride_in_bytes = currentW * 4;
+                videoFrame.picture_aspect_ratio = (float)currentW / currentH;
+
+                // Limpa posições interpoladas anteriores para evitar crash de ROI fora dos limites do novo canvas
+                _posicoesAtuais.Clear();
+            }
+
+            if (AppConfig.CanvasLarguraVertical != currentWV || AppConfig.CanvasAlturaVertical != currentHV)
+            {
+                currentWV = AppConfig.CanvasLarguraVertical;
+                currentHV = AppConfig.CanvasAlturaVertical;
+                _canvasVertical?.Dispose();
+                _canvasVertical = new Mat(currentHV, currentWV, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
+                
+                videoFrameV.xres = currentWV;
+                videoFrameV.yres = currentHV;
+                videoFrameV.line_stride_in_bytes = currentWV * 4;
+                videoFrameV.picture_aspect_ratio = (float)currentWV / currentHV;
+            }
 
             var framesAtivos = new List<(string Nome, Mat Frame, string Apelido)>();
 
@@ -1927,7 +1961,7 @@ public static class VideoEngine
             }
             else
             {
-                var alvos = CalcularPosicoesAlvo(framesAtivos, AppConfig.FonteHighlight, AppConfig.FonteSolo, W, H, pad);
+                var alvos = CalcularPosicoesAlvo(framesAtivos, AppConfig.FonteHighlight, AppConfig.FonteSolo, currentW, currentH, pad);
 
                 foreach (var kvp in alvos)
                 {
@@ -1989,14 +2023,14 @@ public static class VideoEngine
 
             if (framesAtivos.Count == 0)
             {
-                Cv2.PutText(canvasV, "Aguardando...", new OpenCvSharp.Point(60, HV / 2),
+                Cv2.PutText(canvasV, "Aguardando...", new OpenCvSharp.Point(60, currentHV / 2),
                     HersheyFonts.HersheySimplex, 1.0, new Scalar(100, 100, 100, 255), 2, LineTypes.AntiAlias);
             }
             else
             {
                 int padV = 8;
                 int nVis = Math.Min(framesAtivos.Count, 4);
-                int hBloco = (HV - (nVis + 1) * padV) / nVis;
+                int hBloco = (currentHV - (nVis + 1) * padV) / nVis;
 
                 for (int i = 0; i < nVis; i++)
                 {
@@ -2004,7 +2038,7 @@ public static class VideoEngine
                     int py = padV + i * (hBloco + padV);
 
                     int fontSize = 32;
-                    int mw = WV - 2 * padV;
+                    int mw = currentWV - 2 * padV;
                     if (mw < 600) fontSize = 24;
 
                     var fontGC = ObterFonteAnton(fontSize);
@@ -2289,6 +2323,19 @@ public static class VideoEngine
 
             offsetX = x + (maxW - novoW) / 2;
             offsetY = y + (maxH - novoH) / 2;
+        }
+
+        // Validação defensiva: garante que a região de interesse (ROI) não ultrapasse os limites físicos do canvas.
+        // Se ultrapassar, descartamos a renderização deste feed neste frame para evitar que o NDI Director crashe.
+        if (offsetX < 0 || offsetY < 0 || novoW <= 0 || novoH <= 0 || 
+            (offsetX + novoW) > canvas.Cols || (offsetY + novoH) > canvas.Rows)
+        {
+            if (AppConfig.HabilitarLogsDiagnostico)
+            {
+                Console.WriteLine($"[AVISO-VIDEO] Ignorando renderizacao de feed fora dos limites. Canvas: {canvas.Cols}x{canvas.Rows}, ROI: x={offsetX}, y={offsetY}, w={novoW}, h={novoH}");
+            }
+            frameRedim.Dispose();
+            return;
         }
 
         using (var roi = new Mat(canvas, new Rect(offsetX, offsetY, novoW, novoH)))
@@ -3104,8 +3151,40 @@ class Program
                 qualidadeGravacao = AppConfig.QualidadeGravacao,
                 habilitarLogsDiagnostico = AppConfig.HabilitarLogsDiagnostico,
                 mosaicoVertical = AppConfig.MosaicoVertical,
-                paddingMosaico = AppConfig.PaddingMosaico
+                paddingMosaico = AppConfig.PaddingMosaico,
+                canvasLarguraHorizontal = AppConfig.CanvasLarguraHorizontal,
+                canvasAlturaHorizontal = AppConfig.CanvasAlturaHorizontal,
+                canvasLarguraVertical = AppConfig.CanvasLarguraVertical,
+                canvasAlturaVertical = AppConfig.CanvasAlturaVertical
             });
+        });
+
+        // API: Definir resolução horizontal
+        app.MapPost("/api/configuracoes/definir_resolucao_horizontal/{w}/{h}", (int w, int h) =>
+        {
+            if (w < 128 || w > 3840 || h < 128 || h > 2160)
+            {
+                return Results.BadRequest(new { status = "error", message = "Dimensoes invalidas (Largura: 128-3840, Altura: 128-2160)." });
+            }
+            AppConfig.CanvasLarguraHorizontal = w;
+            AppConfig.CanvasAlturaHorizontal = h;
+            Console.WriteLine($"[*] Dimensoes do mosaico horizontal alteradas para: {w}x{h}");
+            SseManager.NotificarClientes();
+            return Results.Json(new { status = "ok", w, h });
+        });
+
+        // API: Definir resolução vertical
+        app.MapPost("/api/configuracoes/definir_resolucao_vertical/{w}/{h}", (int w, int h) =>
+        {
+            if (w < 128 || w > 3840 || h < 128 || h > 2160)
+            {
+                return Results.BadRequest(new { status = "error", message = "Dimensoes invalidas (Largura: 128-3840, Altura: 128-2160)." });
+            }
+            AppConfig.CanvasLarguraVertical = w;
+            AppConfig.CanvasAlturaVertical = h;
+            Console.WriteLine($"[*] Dimensoes do mosaico vertical alteradas para: {w}x{h}");
+            SseManager.NotificarClientes();
+            return Results.Json(new { status = "ok", w, h });
         });
 
         // API: Definir o padding do mosaico (0-100px)

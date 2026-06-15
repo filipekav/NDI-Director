@@ -682,6 +682,7 @@ body.modo-dock .input-name {
     user-select: none; 
     white-space: nowrap; 
     flex-shrink: 0;
+    width: auto;
 }
 body.modo-painel .btn-save-name {
     font-size: 0.78rem; 
@@ -808,13 +809,13 @@ body.modo-dock .btn-layout-toggle.active {
 }
 body.modo-painel .modal-content {
     border-radius: 16px;
-    width: 90%;
-    max-width: 520px;
+    width: 540px;
+    max-width: 95%;
 }
 body.modo-dock .modal-content {
     border-radius: 12px;
-    width: 95%;
-    max-width: 520px;
+    width: 540px;
+    max-width: 95%;
     max-height: 92vh;
     display: flex;
     flex-direction: column;

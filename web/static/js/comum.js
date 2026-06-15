@@ -322,6 +322,17 @@ function carregarConfiguracoes() {
             atualizarPaddingVisual(dados.paddingMosaico);
         }
 
+        // Atualiza inputs de resoluções de canvas
+        const inputW = document.getElementById('input-canvas-w');
+        const inputH = document.getElementById('input-canvas-h');
+        if (inputW && dados.canvasLarguraHorizontal !== undefined) inputW.value = dados.canvasLarguraHorizontal;
+        if (inputH && dados.canvasAlturaHorizontal !== undefined) inputH.value = dados.canvasAlturaHorizontal;
+
+        const inputWV = document.getElementById('input-canvas-wv');
+        const inputHV = document.getElementById('input-canvas-hv');
+        if (inputWV && dados.canvasLarguraVertical !== undefined) inputWV.value = dados.canvasLarguraVertical;
+        if (inputHV && dados.canvasAlturaVertical !== undefined) inputHV.value = dados.canvasAlturaVertical;
+
         // Atualiza botão do layout no header
         const btnLayout = document.getElementById('btn-layout-toggle');
         if (btnLayout) {
@@ -695,4 +706,42 @@ function formatarTempo(segundos) {
     } else {
         return `${pad(m)}:${pad(s)}`;
     }
+}
+
+function definirResolucaoHorizontal(w, h) {
+    fetch(`/api/configuracoes/definir_resolucao_horizontal/${w}/${h}`, { method: 'POST' })
+    .then(res => {
+        if (!res.ok) return res.json().then(e => alert(e.message));
+        console.log(`Resolução horizontal atualizada para ${w}x${h}`);
+    })
+    .catch(err => console.error("Erro ao definir resolução horizontal:", err));
+}
+
+function definirResolucaoVertical(w, h) {
+    fetch(`/api/configuracoes/definir_resolucao_vertical/${w}/${h}`, { method: 'POST' })
+    .then(res => {
+        if (!res.ok) return res.json().then(e => alert(e.message));
+        console.log(`Resolução vertical atualizada para ${w}x${h}`);
+    })
+    .catch(err => console.error("Erro ao definir resolução vertical:", err));
+}
+
+function aplicarResolucaoHorizontal() {
+    const w = parseInt(document.getElementById('input-canvas-w').value);
+    const h = parseInt(document.getElementById('input-canvas-h').value);
+    if (isNaN(w) || isNaN(h)) {
+        alert("Largura e Altura devem ser números válidos.");
+        return;
+    }
+    definirResolucaoHorizontal(w, h);
+}
+
+function aplicarResolucaoVertical() {
+    const w = parseInt(document.getElementById('input-canvas-wv').value);
+    const h = parseInt(document.getElementById('input-canvas-hv').value);
+    if (isNaN(w) || isNaN(h)) {
+        alert("Largura e Altura devem ser números válidos.");
+        return;
+    }
+    definirResolucaoVertical(w, h);
 }
