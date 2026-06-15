@@ -1,0 +1,15 @@
+{
+  "CorFundoAtual": "verde",
+  "FormatoAudioAtual": "aac",
+  "ApagarTemporarios": true,
+  "QualidadeGravacao": "media",
+  "HabilitarLogsDiagnostico": false,
+  "MosaicoVertical": false,
+  "PaddingMosaico": 20,
+  "CanvasLarguraHorizontal": 1920,
+  "CanvasAlturaHorizontal": 850,
+  "CanvasLarguraVertical": 550,
+  "CanvasAlturaVertical": 850,
+  "ApelidosFontes": {},
+  "VolumesFontes": {}
+}

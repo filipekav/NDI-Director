@@ -65,6 +65,119 @@ public static class AppConfig
     };
 
     public static readonly AudioMixer MixerGlobal = new();
+
+    private const string CONFIG_FILE = "ndi_director_config.json";
+    private static readonly object LockConfig = new();
+
+    public static void SalvarConfiguracoes()
+    {
+        lock (LockConfig)
+        {
+            try
+            {
+                var data = new ConfigData
+                {
+                    CorFundoAtual = CorFundoAtual,
+                    FormatoAudioAtual = FormatoAudioAtual,
+                    ApagarTemporarios = ApagarTemporarios,
+                    QualidadeGravacao = QualidadeGravacao,
+                    HabilitarLogsDiagnostico = HabilitarLogsDiagnostico,
+                    MosaicoVertical = MosaicoVertical,
+                    PaddingMosaico = PaddingMosaico,
+                    CanvasLarguraHorizontal = CanvasLarguraHorizontal,
+                    CanvasAlturaHorizontal = CanvasAlturaHorizontal,
+                    CanvasLarguraVertical = CanvasLarguraVertical,
+                    CanvasAlturaVertical = CanvasAlturaVertical,
+                    ApelidosFontes = new Dictionary<string, string>(ApelidosFontes),
+                    VolumesFontes = new Dictionary<string, float>(VolumesFontes)
+                };
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                string json = JsonSerializer.Serialize(data, options);
+                
+                string tempFile = CONFIG_FILE + ".tmp";
+                File.WriteAllText(tempFile, json);
+                
+                if (File.Exists(CONFIG_FILE))
+                {
+                    File.Delete(CONFIG_FILE);
+                }
+                File.Move(tempFile, CONFIG_FILE);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[!] Erro ao salvar configurações: {ex.Message}");
+            }
+        }
+    }
+
+    public static void CarregarConfiguracoes()
+    {
+        lock (LockConfig)
+        {
+            try
+            {
+                if (!File.Exists(CONFIG_FILE)) return;
+
+                string json = File.ReadAllText(CONFIG_FILE);
+                var data = JsonSerializer.Deserialize<ConfigData>(json);
+                if (data == null) return;
+
+                CorFundoAtual = data.CorFundoAtual ?? "verde";
+                FormatoAudioAtual = data.FormatoAudioAtual ?? "aac";
+                ApagarTemporarios = data.ApagarTemporarios;
+                QualidadeGravacao = data.QualidadeGravacao ?? "media";
+                HabilitarLogsDiagnostico = data.HabilitarLogsDiagnostico;
+                MosaicoVertical = data.MosaicoVertical;
+                PaddingMosaico = data.PaddingMosaico;
+                CanvasLarguraHorizontal = data.CanvasLarguraHorizontal;
+                CanvasAlturaHorizontal = data.CanvasAlturaHorizontal;
+                CanvasLarguraVertical = data.CanvasLarguraVertical;
+                CanvasAlturaVertical = data.CanvasAlturaVertical;
+
+                ApelidosFontes.Clear();
+                if (data.ApelidosFontes != null)
+                {
+                    foreach (var kvp in data.ApelidosFontes)
+                    {
+                        ApelidosFontes[kvp.Key] = kvp.Value;
+                    }
+                }
+
+                VolumesFontes.Clear();
+                if (data.VolumesFontes != null)
+                {
+                    foreach (var kvp in data.VolumesFontes)
+                    {
+                        VolumesFontes[kvp.Key] = kvp.Value;
+                    }
+                }
+
+                Console.WriteLine($"[*] Configurações carregadas com sucesso de '{CONFIG_FILE}'");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[!] Erro ao carregar configurações: {ex.Message}. Mantendo padrões.");
+            }
+        }
+    }
+}
+
+public class ConfigData
+{
+    public string CorFundoAtual { get; set; } = "verde";
+    public string FormatoAudioAtual { get; set; } = "aac";
+    public bool ApagarTemporarios { get; set; } = true;
+    public string QualidadeGravacao { get; set; } = "media";
+    public bool HabilitarLogsDiagnostico { get; set; } = false;
+    public bool MosaicoVertical { get; set; } = false;
+    public int PaddingMosaico { get; set; } = 20;
+    public int CanvasLarguraHorizontal { get; set; } = 1920;
+    public int CanvasAlturaHorizontal { get; set; } = 850;
+    public int CanvasLarguraVertical { get; set; } = 550;
+    public int CanvasAlturaVertical { get; set; } = 850;
+    public Dictionary<string, string> ApelidosFontes { get; set; } = new();
+    public Dictionary<string, float> VolumesFontes { get; set; } = new();
 }
 
 public class MuxingStatus
@@ -2630,6 +2743,7 @@ class Program
     static void Main(string[] args)
     {
         Console.SetOut(new TimePrefixedTextWriter(Console.Out));
+        AppConfig.CarregarConfiguracoes();
 
         if (!NDIlib.initialize())
         {
@@ -3214,6 +3328,7 @@ class Program
                 {
                     AppConfig.ApelidosFontes[nome] = apelido;
                     Console.WriteLine($"[*] Apelido definido para {nome}: '{apelido}'");
+                    AppConfig.SalvarConfiguracoes();
                 }
 
                 SseManager.NotificarClientes();
@@ -3234,6 +3349,7 @@ class Program
                 {
                     AppConfig.CorFundoAtual = cor;
                     Console.WriteLine($"[*] Fundo solicitado: {cor}");
+                    AppConfig.SalvarConfiguracoes();
                     SseManager.NotificarClientes();
                     return Results.Json(new { status = "ok" });
                 }
@@ -3270,6 +3386,7 @@ class Program
             AppConfig.CanvasLarguraHorizontal = w;
             AppConfig.CanvasAlturaHorizontal = h;
             Console.WriteLine($"[*] Dimensoes do mosaico horizontal alteradas para: {w}x{h}");
+            AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
             return Results.Json(new { status = "ok", w, h });
         });
@@ -3284,6 +3401,7 @@ class Program
             AppConfig.CanvasLarguraVertical = w;
             AppConfig.CanvasAlturaVertical = h;
             Console.WriteLine($"[*] Dimensoes do mosaico vertical alteradas para: {w}x{h}");
+            AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
             return Results.Json(new { status = "ok", w, h });
         });
@@ -3297,6 +3415,7 @@ class Program
             }
             AppConfig.PaddingMosaico = valor;
             Console.WriteLine($"[*] Padding do mosaico definido para: {valor}px");
+            AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
             return Results.Json(new { status = "ok", paddingMosaico = valor });
         });
@@ -3327,6 +3446,7 @@ class Program
             {
                 AppConfig.VolumesFontes[nome] = valor / 100.0f;
                 Console.WriteLine($"[*] Volume de '{nome}' definido para: {valor}%");
+                AppConfig.SalvarConfiguracoes();
             }
 
             SseManager.NotificarClientes();
@@ -3338,6 +3458,7 @@ class Program
         {
             AppConfig.MosaicoVertical = valor;
             Console.WriteLine($"[*] Mosaico vertical alterado para: {valor}");
+            AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
             return Results.Json(new { status = "ok", mosaicoVertical = valor });
         });
@@ -3349,6 +3470,7 @@ class Program
             {
                 AppConfig.FormatoAudioAtual = formato;
                 Console.WriteLine($"[*] Formato de audio global alterado para: {formato}");
+                AppConfig.SalvarConfiguracoes();
                 SseManager.NotificarClientes();
                 return Results.Json(new { status = "ok", formato = formato });
             }
@@ -3360,6 +3482,7 @@ class Program
         {
             AppConfig.ApagarTemporarios = valor;
             Console.WriteLine($"[*] Apagar arquivos temporários alterado para: {valor}");
+            AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
             return Results.Json(new { status = "ok", apagarTemporarios = valor });
         });
@@ -3369,6 +3492,7 @@ class Program
         {
             AppConfig.HabilitarLogsDiagnostico = valor;
             Console.WriteLine($"[*] Exibição de logs de diagnóstico alterada para: {valor}");
+            AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
             return Results.Json(new { status = "ok", habilitarLogsDiagnostico = valor });
         });
@@ -3380,6 +3504,7 @@ class Program
             {
                 AppConfig.QualidadeGravacao = qualidade;
                 Console.WriteLine($"[*] Qualidade de gravação global alterada para: {qualidade}");
+                AppConfig.SalvarConfiguracoes();
                 SseManager.NotificarClientes();
                 return Results.Json(new { status = "ok", qualidade = qualidade });
             }
