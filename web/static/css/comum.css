@@ -1531,3 +1531,22 @@ body.modo-dock .metrics-container {
         display: none;
     }
 }
+
+/* Telemetria de Rede das Câmeras (Tooltip / Ícone) */
+.net-status-icon {
+    font-size: 0.95rem;
+    margin-left: 8px;
+    cursor: help;
+    display: inline-block;
+    vertical-align: middle;
+    transition: color 0.3s ease;
+}
+.net-status-icon.good {
+    color: #10b981; /* Verde esmeralda */
+}
+.net-status-icon.warning {
+    color: var(--warning); /* Amarelo/Laranja */
+}
+.net-status-icon.danger {
+    color: var(--danger); /* Vermelho */
+}

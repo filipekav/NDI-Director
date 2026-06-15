@@ -521,6 +521,12 @@ public class ReceptorNDI
     public int XRes { get; private set; } = 0;
     public int YRes { get; private set; } = 0;
     public double Fps { get; private set; } = 0.0;
+
+    // Estatísticas de Performance da Conexão NDI
+    public long VideoFrames { get; private set; } = 0;
+    public long AudioFrames { get; private set; } = 0;
+    public long DroppedVideoFrames { get; private set; } = 0;
+    public long DroppedAudioFrames { get; private set; } = 0;
     
     private IntPtr _pRecv = IntPtr.Zero;
     private Thread? _threadCapture;
@@ -577,6 +583,18 @@ public class ReceptorNDI
 
         while (_running)
         {
+            if (_pRecv != IntPtr.Zero)
+            {
+                NDIlib.recv_performance_t perfTotal = new NDIlib.recv_performance_t();
+                NDIlib.recv_performance_t perfDropped = new NDIlib.recv_performance_t();
+                NDIlib.recv_get_performance(_pRecv, ref perfTotal, ref perfDropped);
+                
+                VideoFrames = perfTotal.video_frames;
+                AudioFrames = perfTotal.audio_frames;
+                DroppedVideoFrames = perfDropped.video_frames;
+                DroppedAudioFrames = perfDropped.audio_frames;
+            }
+
             NDIlib.frame_type_e frameType = NDIlib.recv_capture_v3(_pRecv, ref videoFrame, ref audioFrame, ref metadataFrame, 200);
             bool erroAntes = Erro;
             bool resAlterada = false;
@@ -1860,12 +1878,28 @@ public static class SseManager
                     double fpsMosaico = VideoEngine.ObterFpsMosaico();
                     double fpsVertical = VideoEngine.ObterFpsVertical();
 
+                    // Coleta de estatísticas individuais dos receptores ativos
+                    var listaFontes = new List<object>();
+                    foreach (var kvp in AppConfig.ReceptoresAtivos)
+                    {
+                        listaFontes.Add(new
+                        {
+                            nome = kvp.Key,
+                            fps = kvp.Value.Fps,
+                            v_frames = kvp.Value.VideoFrames,
+                            a_frames = kvp.Value.AudioFrames,
+                            v_drop = kvp.Value.DroppedVideoFrames,
+                            a_drop = kvp.Value.DroppedAudioFrames
+                        });
+                    }
+
                     var metrics = new
                     {
                         cpu = cpuPorcentagem,
                         ram = ramMb,
                         fpsMosaico = fpsMosaico,
-                        fpsVertical = fpsVertical
+                        fpsVertical = fpsVertical,
+                        fontes = listaFontes
                     };
 
                     string payload = JsonSerializer.Serialize(metrics);

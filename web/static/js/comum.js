@@ -54,6 +54,19 @@ function carregarFontes() {
 
             card.className = `feed-card ${fonte.ativo ? 'active' : ''} ${fonte.highlight ? 'highlighted' : ''} ${fonte.solo ? 'solo' : ''} ${fonte.erro ? 'erro' : ''}`;
 
+            // Garante que o ícone de status de rede esteja presente no card
+            let netIcon = card.querySelector('.net-status-icon');
+            if (!netIcon) {
+                const badge = card.querySelector('.status-badge');
+                if (badge) {
+                    netIcon = document.createElement('span');
+                    netIcon.className = 'net-status-icon';
+                    netIcon.style.display = 'none';
+                    netIcon.textContent = '📶';
+                    badge.appendChild(netIcon);
+                }
+            }
+
             let statusText = '';
             if (isDock) {
                 statusText = fonte.erro ? 'Recon...' : (fonte.ativo ? 'Na Cena' : 'Dispo');
@@ -673,6 +686,57 @@ function conectarSSE() {
             if (ramVal) ramVal.textContent = metrics.ram.toFixed(0) + ' MB';
             if (fpsMosaicoVal) fpsMosaicoVal.textContent = metrics.fpsMosaico.toFixed(1);
             if (fpsVerticalVal) fpsVerticalVal.textContent = metrics.fpsVertical.toFixed(1);
+            // Atualiza status de rede para feeds ativos no payload
+            const fontesAtualizadas = new Set();
+            if (metrics.fontes && Array.isArray(metrics.fontes)) {
+                metrics.fontes.forEach(f => {
+                    const cardId = 'card-' + f.nome.replace(/[^a-zA-Z0-9]/g, '_');
+                    fontesAtualizadas.add(cardId);
+                    const card = document.getElementById(cardId);
+                    if (card) {
+                        const netIcon = card.querySelector('.net-status-icon');
+                        if (netIcon) {
+                            netIcon.style.display = 'inline-block';
+                            
+                            const vFrames = f.v_frames || 0;
+                            const vDrop = f.v_drop || 0;
+                            const aFrames = f.a_frames || 0;
+                            const aDrop = f.a_drop || 0;
+                            
+                            // Calcula porcentagem de perda de frames de vídeo
+                            const totalVideo = vFrames + vDrop;
+                            const lossRate = totalVideo > 0 ? (vDrop / totalVideo) * 100 : 0;
+                            
+                            // Define cores com base no nível de perda
+                            netIcon.className = 'net-status-icon';
+                            if (lossRate > 2.0) {
+                                netIcon.classList.add('danger');
+                            } else if (lossRate > 0.2 || vDrop > 0) {
+                                netIcon.classList.add('warning');
+                            } else {
+                                netIcon.classList.add('good');
+                            }
+                            
+                            // Monta o tooltip descritivo em português brasileiro
+                            const fpsStr = f.fps ? f.fps.toFixed(2) + ' FPS' : 'Desconhecido';
+                            netIcon.title = `Saúde da Conexão NDI:\n` +
+                                            `• FPS de Entrada: ${fpsStr}\n` +
+                                            `• Vídeo Recebido: ${vFrames.toLocaleString()} frames\n` +
+                                            `• Vídeo Perdido (Drops): ${vDrop.toLocaleString()} (${lossRate.toFixed(2)}%)\n` +
+                                            `• Áudio Recebido: ${aFrames.toLocaleString()} frames\n` +
+                                            `• Áudio Perdido: ${aDrop.toLocaleString()}`;
+                        }
+                    }
+                });
+            }
+
+            // Oculta apenas os ícones de fontes que não estão mais ativas
+            document.querySelectorAll('.net-status-icon').forEach(icon => {
+                const card = icon.closest('.feed-card');
+                if (card && !fontesAtualizadas.has(card.id)) {
+                    icon.style.display = 'none';
+                }
+            });
         } catch (err) {
             console.error("Erro ao ler métricas de performance:", err);
         }
