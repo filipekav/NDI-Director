@@ -198,7 +198,21 @@ public class AudioMixer
     public const int TamanhoBloco = 960; // 20ms de áudio a 48kHz
     private const double IntervaloBlocoMs = 20.0;
 
-    private readonly Dictionary<string, (Queue<float> L, Queue<float> R)> _buffers = new();
+    private class FonteAudioState
+    {
+        public Queue<float> L { get; } = new(480000);
+        public Queue<float> R { get; } = new(480000);
+        public bool EmBuffering { get; set; } = true;
+        public bool AplicarFadeInProximo { get; set; } = false;
+        public bool BlocoAnteriorFoiSilencio { get; set; } = true;
+        public bool TerminouEmFadeOut { get; set; } = true;
+        public double FaseResample { get; set; } = 0.0;
+        public float UltimaAmostraL { get; set; } = 0.0f;
+        public float UltimaAmostraR { get; set; } = 0.0f;
+        public bool TemUltimaAmostra { get; set; } = false;
+    }
+
+    private readonly Dictionary<string, FonteAudioState> _buffers = new();
     private readonly object _lockBuffers = new();
 
     // Fila de blocos mixados prontos para a saída NDI (contém arrays de float de tamanho 2 * 960 = 1920)
@@ -277,58 +291,120 @@ public class AudioMixer
                 }
             }
 
-            // 2. Reamostragem (Resampling) linear rápida para 48kHz se necessário
+            // 2. Obter estado do mixer
+            FonteAudioState estado;
+            lock (_lockBuffers)
+            {
+                if (!_buffers.TryGetValue(nomeFonte, out var est))
+                {
+                    est = new FonteAudioState();
+                    _buffers[nomeFonte] = est;
+                }
+                estado = est!;
+            }
+
+            // 3. Reamostragem (Resampling) linear contínua com fase acumulada
             float[] leftResampled;
             float[] rightResampled;
 
             if (sampleRate != SampleRateSaida)
             {
-                int numAmostrasOut = (int)Math.Round((double)noSamples * SampleRateSaida / sampleRate);
-                if (numAmostrasOut <= 0) return;
-
-                leftResampled = new float[numAmostrasOut];
-                rightResampled = new float[numAmostrasOut];
-
-                double ratio = (double)(noSamples - 1) / (numAmostrasOut - 1);
-                for (int i = 0; i < numAmostrasOut; i++)
+                double passo = (double)sampleRate / SampleRateSaida;
+                var listL = new System.Collections.Generic.List<float>();
+                var listR = new System.Collections.Generic.List<float>();
+                
+                lock (_lockBuffers)
                 {
-                    double srcIdx = i * ratio;
-                    int idxLow = (int)Math.Floor(srcIdx);
-                    int idxHigh = (int)Math.Ceiling(srcIdx);
-                    double weight = srcIdx - idxLow;
-
-                    idxLow = Math.Max(0, Math.Min(idxLow, noSamples - 1));
-                    idxHigh = Math.Max(0, Math.Min(idxHigh, noSamples - 1));
-
-                    leftResampled[i] = (float)((1.0 - weight) * left[idxLow] + weight * left[idxHigh]);
-                    rightResampled[i] = (float)((1.0 - weight) * right[idxLow] + weight * right[idxHigh]);
+                    double fase = estado.FaseResample;
+                    
+                    while (fase < noSamples - 1)
+                    {
+                        int idxLow = (int)Math.Floor(fase);
+                        double weight = fase - idxLow;
+                        
+                        float amostraL_Low, amostraR_Low;
+                        float amostraL_High, amostraR_High;
+                        
+                        if (idxLow < 0)
+                        {
+                            amostraL_Low = estado.TemUltimaAmostra ? estado.UltimaAmostraL : left[0];
+                            amostraR_Low = estado.TemUltimaAmostra ? estado.UltimaAmostraR : right[0];
+                        }
+                        else
+                        {
+                            amostraL_Low = left[idxLow];
+                            amostraR_Low = right[idxLow];
+                        }
+                        
+                        int idxHigh = idxLow + 1;
+                        if (idxHigh < 0)
+                        {
+                            amostraL_High = estado.TemUltimaAmostra ? estado.UltimaAmostraL : left[0];
+                            amostraR_High = estado.TemUltimaAmostra ? estado.UltimaAmostraR : right[0];
+                        }
+                        else
+                        {
+                            amostraL_High = left[idxHigh];
+                            amostraR_High = right[idxHigh];
+                        }
+                        
+                        float outL = (float)((1.0 - weight) * amostraL_Low + weight * amostraL_High);
+                        float outR = (float)((1.0 - weight) * amostraR_Low + weight * amostraR_High);
+                        
+                        listL.Add(outL);
+                        listR.Add(outR);
+                        
+                        fase += passo;
+                    }
+                    
+                    estado.FaseResample = fase - noSamples;
+                    estado.UltimaAmostraL = left[noSamples - 1];
+                    estado.UltimaAmostraR = right[noSamples - 1];
+                    estado.TemUltimaAmostra = true;
                 }
+                
+                leftResampled = listL.ToArray();
+                rightResampled = listR.ToArray();
             }
             else
             {
                 leftResampled = left;
                 rightResampled = right;
+                
+                lock (_lockBuffers)
+                {
+                    estado.FaseResample = 0.0;
+                    estado.UltimaAmostraL = left[noSamples - 1];
+                    estado.UltimaAmostraR = right[noSamples - 1];
+                    estado.TemUltimaAmostra = true;
+                }
             }
 
-            // 3. Adicionar aos buffers circulares
+            // 4. Adicionar aos buffers circulares
             lock (_lockBuffers)
             {
-                if (!_buffers.TryGetValue(nomeFonte, out var deques))
-                {
-                    deques = (new Queue<float>(480000), new Queue<float>(480000));
-                    _buffers[nomeFonte] = deques;
-                }
-
                 int maxCapacity = 480000;
                 for (int i = 0; i < leftResampled.Length; i++)
                 {
-                    if (deques.L.Count >= maxCapacity)
+                    if (estado.L.Count >= maxCapacity)
                     {
-                        deques.L.Dequeue();
-                        deques.R.Dequeue();
+                        estado.L.Dequeue();
+                        estado.R.Dequeue();
                     }
-                    deques.L.Enqueue(leftResampled[i]);
-                    deques.R.Enqueue(rightResampled[i]);
+                    estado.L.Enqueue(leftResampled[i]);
+                    estado.R.Enqueue(rightResampled[i]);
+                }
+
+                // Lógica de compensação de Clock Drift
+                if (estado.L.Count > 14400)
+                {
+                    int descartar = estado.L.Count - 4800;
+                    for (int i = 0; i < descartar; i++)
+                    {
+                        estado.L.Dequeue();
+                        estado.R.Dequeue();
+                    }
+                    estado.AplicarFadeInProximo = true;
                 }
             }
         }
@@ -345,15 +421,110 @@ public class AudioMixer
 
         lock (_lockBuffers)
         {
-            if (_buffers.TryGetValue(nomeFonte, out var deques))
+            if (_buffers.TryGetValue(nomeFonte, out var estado))
             {
-                int disponivel = deques.L.Count;
-                int tamanhoLer = Math.Min(quantidade, disponivel);
-                for (int i = 0; i < tamanhoLer; i++)
+                int disponivel = estado.L.Count;
+
+                // 1. Se estiver no estado de Buffering, aguarda o buffer encher até um nível seguro
+                if (estado.EmBuffering)
                 {
-                    leftSamples[i] = deques.L.Dequeue();
-                    rightSamples[i] = deques.R.Dequeue();
+                    // Limite seguro para recomeçar a reprodução: 2880 amostras (~60ms de áudio a 48kHz)
+                    int limiteGatilhoBuffering = 2880; 
+                    if (disponivel >= limiteGatilhoBuffering)
+                    {
+                        estado.EmBuffering = false;
+                        estado.AplicarFadeInProximo = true;
+                    }
+                    else
+                    {
+                        estado.BlocoAnteriorFoiSilencio = true;
+                        estado.TerminouEmFadeOut = true; // Garante que aplicará fade-in quando voltar
+                        return (leftSamples, rightSamples);
+                    }
                 }
+
+                // 2. Se o buffer está completamente zerado, entra em buffering imediatamente
+                if (disponivel == 0)
+                {
+                    estado.EmBuffering = true;
+                    estado.BlocoAnteriorFoiSilencio = true;
+                    estado.TerminouEmFadeOut = true;
+                    return (leftSamples, rightSamples);
+                }
+
+                // 3. Caso de sobressalto / underflow parcial
+                if (disponivel < quantidade)
+                {
+                    // Se o sobressalto for muito severo (menos de 480 amostras / 10ms),
+                    // lemos o que sobrou e entramos em buffering para restabelecer a segurança.
+                    // Caso contrário (>= 480), tentamos tocar o que temos e preencher o final com silêncio suave,
+                    // mantendo a reprodução ativa sem entrar em modo buffering drástico.
+                    if (disponivel < 480)
+                    {
+                        estado.EmBuffering = true;
+                    }
+
+                    int tamanhoLer = disponivel; // Lê todo o restante disponível
+                    for (int i = 0; i < tamanhoLer; i++)
+                    {
+                        leftSamples[i] = estado.L.Dequeue();
+                        rightSamples[i] = estado.R.Dequeue();
+                    }
+
+                    // Aplica Fade-In se o bloco anterior terminou em silêncio/fade-out
+                    if (estado.AplicarFadeInProximo || estado.TerminouEmFadeOut)
+                    {
+                        int fadeLenIn = Math.Min(128, tamanhoLer);
+                        for (int i = 0; i < fadeLenIn; i++)
+                        {
+                            float fator = (float)i / fadeLenIn;
+                            leftSamples[i] *= fator;
+                            rightSamples[i] *= fator;
+                        }
+                        estado.AplicarFadeInProximo = false;
+                    }
+
+                    // Aplica Fade-Out suave nas últimas amostras válidas lidas para evitar clique físico
+                    int fadeLenOut = Math.Min(128, tamanhoLer);
+                    if (fadeLenOut > 0)
+                    {
+                        int startIndex = tamanhoLer - fadeLenOut;
+                        for (int i = 0; i < fadeLenOut; i++)
+                        {
+                            float fator = 1.0f - ((float)i / fadeLenOut);
+                            leftSamples[startIndex + i] *= fator;
+                            rightSamples[startIndex + i] *= fator;
+                        }
+                    }
+
+                    estado.TerminouEmFadeOut = true;
+                    estado.BlocoAnteriorFoiSilencio = true;
+                    return (leftSamples, rightSamples);
+                }
+
+                // 4. Fluxo normal estável: temos amostras suficientes para preencher o bloco inteiro
+                for (int i = 0; i < quantidade; i++)
+                {
+                    leftSamples[i] = estado.L.Dequeue();
+                    rightSamples[i] = estado.R.Dequeue();
+                }
+
+                // Aplica Fade-In se o bloco anterior terminou em silêncio/fade-out
+                if (estado.AplicarFadeInProximo || estado.TerminouEmFadeOut)
+                {
+                    estado.AplicarFadeInProximo = false;
+                    estado.TerminouEmFadeOut = false;
+                    int fadeLenIn = Math.Min(128, quantidade);
+                    for (int i = 0; i < fadeLenIn; i++)
+                    {
+                        float fator = (float)i / fadeLenIn;
+                        leftSamples[i] *= fator;
+                        rightSamples[i] *= fator;
+                    }
+                }
+
+                estado.BlocoAnteriorFoiSilencio = false;
+                estado.TerminouEmFadeOut = false;
             }
         }
 
