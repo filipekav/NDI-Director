@@ -3,6 +3,7 @@
   "FormatoAudioAtual": "aac",
   "ApagarTemporarios": true,
   "QualidadeGravacao": "media",
+  "HabilitarLivePreview": true,
   "HabilitarLogsDiagnostico": false,
   "MosaicoVertical": false,
   "PaddingMosaico": 20,

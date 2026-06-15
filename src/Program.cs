@@ -26,6 +26,7 @@ public static class AppConfig
 {
     public static List<string> FontesNaRede = new();
     public static ConcurrentDictionary<string, ReceptorNDI> ReceptoresAtivos = new();
+    public static ConcurrentDictionary<string, ReceptorNDI> ReceptoresPreview = new();
     public static string?[] OrdemReceptores = new string?[4];
     public static string? FonteHighlight = null;
     public static string? FonteSolo = null;
@@ -34,6 +35,7 @@ public static class AppConfig
     public static string FormatoAudioAtual = "aac"; // "pcm" ou "aac"
     public static bool ApagarTemporarios = true;
     public static string QualidadeGravacao = "media"; // "alta", "media" ou "baixa"
+    public static bool HabilitarLivePreview = true;
     public static bool HabilitarLogsDiagnostico = false; // Silencia por padrão logs verbosos de progresso e sincronia
     public static bool MosaicoVertical = false;
     public static int PaddingMosaico = 20;
@@ -81,6 +83,7 @@ public static class AppConfig
                     FormatoAudioAtual = FormatoAudioAtual,
                     ApagarTemporarios = ApagarTemporarios,
                     QualidadeGravacao = QualidadeGravacao,
+                    HabilitarLivePreview = HabilitarLivePreview,
                     HabilitarLogsDiagnostico = HabilitarLogsDiagnostico,
                     MosaicoVertical = MosaicoVertical,
                     PaddingMosaico = PaddingMosaico,
@@ -127,6 +130,7 @@ public static class AppConfig
                 FormatoAudioAtual = data.FormatoAudioAtual ?? "aac";
                 ApagarTemporarios = data.ApagarTemporarios;
                 QualidadeGravacao = data.QualidadeGravacao ?? "media";
+                HabilitarLivePreview = data.HabilitarLivePreview;
                 HabilitarLogsDiagnostico = data.HabilitarLogsDiagnostico;
                 MosaicoVertical = data.MosaicoVertical;
                 PaddingMosaico = data.PaddingMosaico;
@@ -169,6 +173,7 @@ public class ConfigData
     public string FormatoAudioAtual { get; set; } = "aac";
     public bool ApagarTemporarios { get; set; } = true;
     public string QualidadeGravacao { get; set; } = "media";
+    public bool HabilitarLivePreview { get; set; } = true;
     public bool HabilitarLogsDiagnostico { get; set; } = false;
     public bool MosaicoVertical { get; set; } = false;
     public int PaddingMosaico { get; set; } = 20;
@@ -687,6 +692,7 @@ public class AudioMixer
 public class ReceptorNDI
 {
     public string Nome { get; }
+    public bool LowBandwidth { get; }
     public Mat? FrameAtual { get; private set; }
     public bool Erro { get; private set; }
     public int XRes { get; private set; } = 0;
@@ -710,9 +716,10 @@ public class ReceptorNDI
     private Mat? _bufferB;
     private bool _useBufferA = true;
 
-    public ReceptorNDI(string nome)
+    public ReceptorNDI(string nome, bool lowBandwidth = false)
     {
         Nome = nome;
+        LowBandwidth = lowBandwidth;
         _running = true;
         _lastFrameTime = DateTime.Now; // Inicializa com a hora atual para dar tempo de capturar o primeiro frame
         _threadCapture = new Thread(CaptureLoop)
@@ -734,7 +741,7 @@ public class ReceptorNDI
         {
             source_to_connect_to = source,
             color_format = NDIlib.recv_color_format_e.recv_color_format_BGRX_BGRA,
-            bandwidth = NDIlib.recv_bandwidth_e.recv_bandwidth_highest,
+            bandwidth = LowBandwidth ? NDIlib.recv_bandwidth_e.recv_bandwidth_lowest : NDIlib.recv_bandwidth_e.recv_bandwidth_highest,
             allow_video_fields = false
         };
 
@@ -835,7 +842,7 @@ public class ReceptorNDI
             }
             else if (frameType == NDIlib.frame_type_e.frame_type_audio)
             {
-                if (audioFrame.p_data != IntPtr.Zero && audioFrame.no_channels > 0 && audioFrame.no_samples > 0)
+                if (!LowBandwidth && audioFrame.p_data != IntPtr.Zero && audioFrame.no_channels > 0 && audioFrame.no_samples > 0)
                 {
                     AppConfig.MixerGlobal.AdicionarAudio(Nome, audioFrame);
 
@@ -1880,6 +1887,49 @@ public static class NdiScanner
                     }
 
                     SseManager.NotificarClientes();
+                }
+
+                // Sincronizar Receptores de Preview em segundo plano (Low Bandwidth)
+                if (AppConfig.HabilitarLivePreview)
+                {
+                    var previewsParaRemover = AppConfig.ReceptoresPreview.Keys
+                        .Where(nome => AppConfig.ReceptoresAtivos.ContainsKey(nome) || !fontesNaRede.Contains(nome))
+                        .ToList();
+
+                    foreach (var nome in previewsParaRemover)
+                    {
+                        if (AppConfig.ReceptoresPreview.TryRemove(nome, out var rec))
+                        {
+                            Task.Run(() => rec.Parar());
+                        }
+                    }
+
+                    foreach (var nome in fontesNaRede)
+                    {
+                        if (!AppConfig.ReceptoresAtivos.ContainsKey(nome) && !AppConfig.ReceptoresPreview.ContainsKey(nome))
+                        {
+                            try
+                            {
+                                var recPreview = new ReceptorNDI(nome, lowBandwidth: true);
+                                AppConfig.ReceptoresPreview[nome] = recPreview;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[!] Erro ao criar receptor de preview para '{nome}': {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                else if (AppConfig.ReceptoresPreview.Count > 0)
+                {
+                    foreach (var nome in AppConfig.ReceptoresPreview.Keys.ToList())
+                    {
+                        if (AppConfig.ReceptoresPreview.TryRemove(nome, out var rec))
+                        {
+                            Task.Run(() => rec.Parar());
+                        }
+                    }
+                    AppConfig.ReceptoresPreview.Clear();
                 }
             }
 
@@ -3571,6 +3621,7 @@ class Program
                 corFundo = AppConfig.CorFundoAtual,
                 apagarTemporarios = AppConfig.ApagarTemporarios,
                 qualidadeGravacao = AppConfig.QualidadeGravacao,
+                habilitarLivePreview = AppConfig.HabilitarLivePreview,
                 habilitarLogsDiagnostico = AppConfig.HabilitarLogsDiagnostico,
                 mosaicoVertical = AppConfig.MosaicoVertical,
                 paddingMosaico = AppConfig.PaddingMosaico,
@@ -3702,6 +3753,30 @@ class Program
             return Results.Json(new { status = "ok", habilitarLogsDiagnostico = valor });
         });
 
+        // API: Definir se habilita previews ao vivo (Live Preview)
+        app.MapPost("/api/configuracoes/definir_live_preview/{valor}", (bool valor) =>
+        {
+            AppConfig.HabilitarLivePreview = valor;
+            Console.WriteLine($"[*] Habilitar Live Preview alterado para: {valor}");
+            
+            // Se foi desativado, limpa imediatamente os previews rodando em background
+            if (!valor)
+            {
+                lock (AppConfig.LockFontes)
+                {
+                    foreach (var rec in AppConfig.ReceptoresPreview.Values)
+                    {
+                        Task.Run(() => rec.Parar());
+                    }
+                    AppConfig.ReceptoresPreview.Clear();
+                }
+            }
+            
+            AppConfig.SalvarConfiguracoes();
+            SseManager.NotificarClientes();
+            return Results.Json(new { status = "ok", habilitarLivePreview = valor });
+        });
+
         // API: Definir qualidade de gravação global (alta / media / baixa)
         app.MapPost("/api/configuracoes/definir_qualidade/{qualidade}", (string qualidade) =>
         {
@@ -3722,7 +3797,10 @@ class Program
             ReceptorNDI? rec;
             lock (AppConfig.LockFontes)
             {
-                AppConfig.ReceptoresAtivos.TryGetValue(nome, out rec);
+                if (!AppConfig.ReceptoresAtivos.TryGetValue(nome, out rec))
+                {
+                    AppConfig.ReceptoresPreview.TryGetValue(nome, out rec);
+                }
             }
 
             bool receptorTemporario = false;
@@ -3739,7 +3817,7 @@ class Program
                 try
                 {
                     Console.WriteLine($"[*] Criando receptor temporário para obter 1 frame de preview: '{nome}'");
-                    rec = new ReceptorNDI(nome);
+                    rec = new ReceptorNDI(nome, lowBandwidth: true);
                     receptorTemporario = true;
                 }
                 catch (Exception ex)
@@ -3843,6 +3921,12 @@ class Program
                 rec.Parar();
             }
             AppConfig.ReceptoresAtivos.Clear();
+
+            foreach (var rec in AppConfig.ReceptoresPreview.Values)
+            {
+                rec.Parar();
+            }
+            AppConfig.ReceptoresPreview.Clear();
         }
     }
 

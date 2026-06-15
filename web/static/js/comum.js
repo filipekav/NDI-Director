@@ -1,5 +1,6 @@
 const isDock = document.body.classList.contains('modo-dock');
 const ultimosVolumes = {};
+let livePreviewAtivo = true;
 
 function carregarFontes() {
     const activeEl = document.activeElement;
@@ -324,6 +325,13 @@ function carregarConfiguracoes() {
         const chkDiagnostico = document.getElementById('chk-logs-diagnostico');
         if (chkDiagnostico) chkDiagnostico.checked = dados.habilitarLogsDiagnostico;
 
+        // Atualiza checkbox de Live Preview
+        const chkLivePreview = document.getElementById('chk-live-preview');
+        if (chkLivePreview) {
+            chkLivePreview.checked = dados.habilitarLivePreview;
+            livePreviewAtivo = dados.habilitarLivePreview;
+        }
+
         // Atualiza checkbox de mosaico vertical
         const chkMosaicoVertical = document.getElementById('chk-mosaico-vertical');
         if (chkMosaicoVertical) chkMosaicoVertical.checked = dados.mosaicoVertical;
@@ -389,6 +397,14 @@ function definirApagarTemporarios(valor) {
 
 function definirHabilitarLogsDiagnostico(valor) {
     fetch('/api/configuracoes/definir_diagnostico/' + valor, { method: 'POST' })
+    .then(res => {
+        if (!res.ok) return res.json().then(e => alert(e.message));
+    });
+}
+
+function definirHabilitarLivePreview(valor) {
+    livePreviewAtivo = valor;
+    fetch('/api/configuracoes/definir_live_preview/' + valor, { method: 'POST' })
     .then(res => {
         if (!res.ok) return res.json().then(e => alert(e.message));
     });
@@ -779,10 +795,27 @@ window.onload = function() {
         });
     }, 1000);
 
+    // Atualização automática periódica dos previews (a cada 3 segundos)
+    setInterval(atualizarPreviewsAutomatico, 3000);
+
     setInterval(carregarFontes, 5000);
     carregarFontes();
     carregarConfiguracoes();
 };
+
+function atualizarPreviewsAutomatico() {
+    if (!livePreviewAtivo) return;
+    document.querySelectorAll('.feed-card').forEach(card => {
+        const img = card.querySelector('.feed-preview');
+        if (img && !img.classList.contains('oculto')) {
+            const titleEl = card.querySelector('.feed-title');
+            if (titleEl && !card.classList.contains('erro')) {
+                const nomeFonte = titleEl.textContent;
+                img.src = '/api/preview/' + encodeURIComponent(nomeFonte) + '?t=' + Date.now();
+            }
+        }
+    });
+}
 
 function formatarTempo(segundos) {
     const h = Math.floor(segundos / 3600);
