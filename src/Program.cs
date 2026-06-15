@@ -2502,60 +2502,64 @@ class Program
         app.UseCors();
 
         // -------------------------------------------------------------
-        // ROTAS WEB
+        // ROTAS WEB E RECURSOS ESTÁTICOS
         // -------------------------------------------------------------
         
+        // Servir arquivos CSS estáticos
+        app.MapGet("/static/css/comum.css", async (HttpContext context) =>
+        {
+            var caminho = ObterCaminhoFisico(Path.Combine("web", "static", "css", "comum.css"));
+            if (caminho == null)
+            {
+                context.Response.StatusCode = 404;
+                return;
+            }
+            context.Response.ContentType = "text/css; charset=utf-8";
+            await context.Response.SendFileAsync(caminho);
+        });
+
+        // Servir arquivos JS estáticos
+        app.MapGet("/static/js/comum.js", async (HttpContext context) =>
+        {
+            var caminho = ObterCaminhoFisico(Path.Combine("web", "static", "js", "comum.js"));
+            if (caminho == null)
+            {
+                context.Response.StatusCode = 404;
+                return;
+            }
+            context.Response.ContentType = "application/javascript; charset=utf-8";
+            await context.Response.SendFileAsync(caminho);
+        });
+
         // Página Inicial: Serve painel.html
         app.MapGet("/", async (HttpContext context) =>
         {
-            var caminhos = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "web", "templates", "painel.html"),          // No output de build/publish (copiado pelo .csproj)
-                Path.Combine(AppContext.BaseDirectory, "..", "web", "templates", "painel.html"),     // Desenvolvimento (dotnet run dentro de src/)
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "web", "templates", "painel.html"),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "web", "templates", "painel.html"),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "web", "templates", "painel.html"),
-                "web\\templates\\painel.html"
-            };
-
-            string? htmlPath = caminhos.FirstOrDefault(File.Exists);
-
-            if (!string.IsNullOrEmpty(htmlPath))
+            var caminho = ObterCaminhoFisico(Path.Combine("web", "templates", "painel.html"));
+            if (caminho != null)
             {
                 context.Response.ContentType = "text/html; charset=utf-8";
-                await context.Response.SendFileAsync(htmlPath);
+                await context.Response.SendFileAsync(caminho);
             }
             else
             {
                 context.Response.StatusCode = 404;
-                await context.Response.WriteAsync("Erro: painel.html nao encontrado nas proximidades.");
+                await context.Response.WriteAsync("Erro: painel.html nao encontrado.");
             }
         });
 
         // Rota do OBS Dock: Serve dock.html compactado
         app.MapGet("/dock", async (HttpContext context) =>
         {
-            var caminhos = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "web", "templates", "dock.html"),          // No output de build/publish (copiado pelo .csproj)
-                Path.Combine(AppContext.BaseDirectory, "..", "web", "templates", "dock.html"),     // Desenvolvimento (dotnet run dentro de src/)
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "web", "templates", "dock.html"),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "web", "templates", "dock.html"),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "web", "templates", "dock.html"),
-                "web\\templates\\dock.html"
-            };
-
-            string? htmlPath = caminhos.FirstOrDefault(File.Exists);
-
-            if (!string.IsNullOrEmpty(htmlPath))
+            var caminho = ObterCaminhoFisico(Path.Combine("web", "templates", "dock.html"));
+            if (caminho != null)
             {
                 context.Response.ContentType = "text/html; charset=utf-8";
-                await context.Response.SendFileAsync(htmlPath);
+                await context.Response.SendFileAsync(caminho);
             }
             else
             {
                 context.Response.StatusCode = 404;
-                await context.Response.WriteAsync("Erro: dock.html nao encontrado nas proximidades.");
+                await context.Response.WriteAsync("Erro: dock.html nao encontrado.");
             }
         });
 
@@ -2647,7 +2651,7 @@ class Program
         });
 
         // API: Alternar ativação de um feed na cena
-        app.MapGet("/toggle/{*nome}", (string nome) =>
+        app.MapPost("/toggle/{*nome}", (string nome) =>
         {
             ReceptorNDI? recParaParar = null;
 
@@ -2909,15 +2913,15 @@ class Program
         }
 
         // API: Iniciar Gravação Individual via FFmpeg acelerado por NVIDIA GPU (NVENC)
-        app.MapGet("/api/gravar/iniciar", (string nome) => IniciarGravar(nome));
-        app.MapGet("/api/gravar/iniciar/{*nome}", (string nome) => IniciarGravar(nome));
+        app.MapPost("/api/gravar/iniciar", (string nome) => IniciarGravar(nome));
+        app.MapPost("/api/gravar/iniciar/{*nome}", (string nome) => IniciarGravar(nome));
 
         // API: Parar Gravação Individual
-        app.MapGet("/api/gravar/parar", (string nome) => PararGravar(nome));
-        app.MapGet("/api/gravar/parar/{*nome}", (string nome) => PararGravar(nome));
+        app.MapPost("/api/gravar/parar", (string nome) => PararGravar(nome));
+        app.MapPost("/api/gravar/parar/{*nome}", (string nome) => PararGravar(nome));
 
         // API: Alternar modo Destaque (Highlight)
-        app.MapGet("/api/highlight/{*nome}", (string nome) =>
+        app.MapPost("/api/highlight/{*nome}", (string nome) =>
         {
             if (!GarantirFonteAtiva(nome))
             {
@@ -2943,7 +2947,7 @@ class Program
         });
 
         // API: Alternar modo Solo
-        app.MapGet("/api/solo/{*nome}", (string nome) =>
+        app.MapPost("/api/solo/{*nome}", (string nome) =>
         {
             if (!GarantirFonteAtiva(nome))
             {
@@ -2970,7 +2974,7 @@ class Program
         });
 
         // API: Definir posição no mosaico
-        app.MapGet("/api/posicao/{nome}/{novaPos}", (string nome, int novaPos) =>
+        app.MapPost("/api/posicao/{nome}/{novaPos}", (string nome, int novaPos) =>
         {
             if (novaPos < 0 || novaPos > 3)
             {
@@ -3074,7 +3078,7 @@ class Program
         });
 
         // API: Definir cor de fundo do mosaico
-        app.MapGet("/api/definir_fundo/{cor}", (string cor) =>
+        app.MapPost("/api/definir_fundo/{cor}", (string cor) =>
         {
             lock (AppConfig.LockFontes)
             {
@@ -3105,7 +3109,7 @@ class Program
         });
 
         // API: Definir o padding do mosaico (0-100px)
-        app.MapGet("/api/configuracoes/definir_padding/{valor}", (int valor) =>
+        app.MapPost("/api/configuracoes/definir_padding/{valor}", (int valor) =>
         {
             if (valor < 0 || valor > 100)
             {
@@ -3118,7 +3122,7 @@ class Program
         });
 
         // API: Definir volume individual da fonte (0-150%)
-        app.MapGet("/api/audio/volume/{*parametros}", (string parametros) =>
+        app.MapPost("/api/audio/volume/{*parametros}", (string parametros) =>
         {
             if (string.IsNullOrEmpty(parametros))
             {
@@ -3150,7 +3154,7 @@ class Program
         });
 
         // API: Definir se o mosaico principal corta câmeras na vertical
-        app.MapGet("/api/configuracoes/definir_mosaico_vertical/{valor}", (bool valor) =>
+        app.MapPost("/api/configuracoes/definir_mosaico_vertical/{valor}", (bool valor) =>
         {
             AppConfig.MosaicoVertical = valor;
             Console.WriteLine($"[*] Mosaico vertical alterado para: {valor}");
@@ -3159,7 +3163,7 @@ class Program
         });
 
         // API: Definir formato de audio global (pcm / aac)
-        app.MapGet("/api/configuracoes/definir_audio/{formato}", (string formato) =>
+        app.MapPost("/api/configuracoes/definir_audio/{formato}", (string formato) =>
         {
             if (formato == "pcm" || formato == "aac")
             {
@@ -3172,7 +3176,7 @@ class Program
         });
 
         // API: Definir se apaga arquivos temporarios
-        app.MapGet("/api/configuracoes/definir_temporarios/{valor}", (bool valor) =>
+        app.MapPost("/api/configuracoes/definir_temporarios/{valor}", (bool valor) =>
         {
             AppConfig.ApagarTemporarios = valor;
             Console.WriteLine($"[*] Apagar arquivos temporários alterado para: {valor}");
@@ -3181,7 +3185,7 @@ class Program
         });
 
         // API: Definir se habilita logs de diagnostico de sincronia
-        app.MapGet("/api/configuracoes/definir_diagnostico/{valor}", (bool valor) =>
+        app.MapPost("/api/configuracoes/definir_diagnostico/{valor}", (bool valor) =>
         {
             AppConfig.HabilitarLogsDiagnostico = valor;
             Console.WriteLine($"[*] Exibição de logs de diagnóstico alterada para: {valor}");
@@ -3190,7 +3194,7 @@ class Program
         });
 
         // API: Definir qualidade de gravação global (alta / media / baixa)
-        app.MapGet("/api/configuracoes/definir_qualidade/{qualidade}", (string qualidade) =>
+        app.MapPost("/api/configuracoes/definir_qualidade/{qualidade}", (string qualidade) =>
         {
             if (qualidade == "alta" || qualidade == "media" || qualidade == "baixa")
             {
@@ -3330,5 +3334,29 @@ class Program
             }
             AppConfig.ReceptoresAtivos.Clear();
         }
+    }
+
+    static string? ObterCaminhoFisico(string subcaminho)
+    {
+        var caminhos = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, subcaminho),
+            Path.Combine(Directory.GetCurrentDirectory(), subcaminho),
+            Path.Combine(AppContext.BaseDirectory, "..", subcaminho),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", subcaminho),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", subcaminho),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", subcaminho),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", subcaminho),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", subcaminho),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", subcaminho),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", subcaminho),
+            subcaminho
+        };
+
+        foreach (var caminho in caminhos)
+        {
+            if (File.Exists(caminho)) return caminho;
+        }
+        return null;
     }
 }
