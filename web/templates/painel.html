@@ -13,6 +13,26 @@
             <h1>NDI Director</h1>
             <p>Gerenciamento inteligente e dinâmico de feeds de vídeo na rede local</p>
             <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 8px;">
+                <!-- Métricas de Desempenho Leves -->
+                <div class="metrics-container" id="metrics-container" style="display: none;">
+                    <div class="metric-item" title="Uso de Processador do NDI Director">
+                        <span class="metric-label">CPU:</span>
+                        <span class="metric-value" id="metric-cpu">--%</span>
+                    </div>
+                    <div class="metric-item" title="Uso de Memória RAM do NDI Director">
+                        <span class="metric-label">RAM:</span>
+                        <span class="metric-value" id="metric-ram">-- MB</span>
+                    </div>
+                    <div class="metric-item" title="Taxa de quadros do Mosaico Principal">
+                        <span class="metric-label">MOSAICO:</span>
+                        <span class="metric-value" id="metric-fps-mosaico">-- FPS</span>
+                    </div>
+                    <div class="metric-item" title="Taxa de quadros do Mosaico Vertical">
+                        <span class="metric-label">VERTICAL:</span>
+                        <span class="metric-value" id="metric-fps-vertical">-- FPS</span>
+                    </div>
+                </div>
+
                 <div class="sse-indicator" id="sse-indicator" style="margin-top: 0;">
                     <span class="sse-dot" id="sse-dot"></span>
                     <span id="sse-label">Conectando...</span>

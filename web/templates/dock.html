@@ -12,6 +12,26 @@
         <div class="dock-header">
             <span class="dock-title">NDI Director Dock</span>
             <div style="display: flex; align-items: center; gap: 8px;">
+                <!-- Métricas de Desempenho Leves -->
+                <div class="metrics-container" id="metrics-container" style="display: none;">
+                    <div class="metric-item" title="Uso de Processador do NDI Director">
+                        <span class="metric-label">CPU:</span>
+                        <span class="metric-value" id="metric-cpu">--%</span>
+                    </div>
+                    <div class="metric-item" title="Uso de Memória RAM do NDI Director">
+                        <span class="metric-label">RAM:</span>
+                        <span class="metric-value" id="metric-ram">-- MB</span>
+                    </div>
+                    <div class="metric-item" title="Taxa de quadros do Mosaico Principal">
+                        <span class="metric-label">MOSAICO:</span>
+                        <span class="metric-value" id="metric-fps-mosaico">-- FPS</span>
+                    </div>
+                    <div class="metric-item" title="Taxa de quadros do Mosaico Vertical">
+                        <span class="metric-label">VERTICAL:</span>
+                        <span class="metric-value" id="metric-fps-vertical">-- FPS</span>
+                    </div>
+                </div>
+
                 <div class="sse-indicator">
                     <span class="sse-dot" id="status-conexao"></span>
                     <span id="texto-conexao">Desconectado</span>

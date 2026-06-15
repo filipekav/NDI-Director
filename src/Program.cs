@@ -1698,6 +1698,94 @@ public static class SseManager
     {
         _envioVuRodando = false;
     }
+
+    private static bool _envioMetricsRodando = false;
+
+    public static void IniciarEnvioMetrics()
+    {
+        if (_envioMetricsRodando) return;
+        _envioMetricsRodando = true;
+
+        Task.Run(async () =>
+        {
+            var ultimoTempoCpu = DateTime.UtcNow;
+            var ultimoTempoCpuProcesso = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
+
+            while (_envioMetricsRodando)
+            {
+                await Task.Delay(1000);
+
+                HttpResponse[] clientes;
+                lock (LockClientes)
+                {
+                    clientes = ClientesSSE.ToArray();
+                }
+
+                if (clientes.Length == 0) continue;
+
+                try
+                {
+                    var tempoAtual = DateTime.UtcNow;
+                    var tempoCpuProcesso = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
+                    var tempoDecorrido = tempoAtual - ultimoTempoCpu;
+                    
+                    double cpuPorcentagem = 0;
+                    if (tempoDecorrido.TotalMilliseconds > 100)
+                    {
+                        var cpuDiferenca = tempoCpuProcesso - ultimoTempoCpuProcesso;
+                        cpuPorcentagem = (cpuDiferenca.TotalMilliseconds / (tempoDecorrido.TotalMilliseconds * Environment.ProcessorCount)) * 100;
+                        cpuPorcentagem = Math.Round(Math.Max(0.0, Math.Min(100.0, cpuPorcentagem)), 1);
+                    }
+
+                    ultimoTempoCpu = tempoAtual;
+                    ultimoTempoCpuProcesso = tempoCpuProcesso;
+
+                    long bytesRam = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+                    double ramMb = Math.Round(bytesRam / 1024.0 / 1024.0, 1);
+
+                    // FPS do Mosaico Principal e Mosaico Vertical
+                    double fpsMosaico = VideoEngine.ObterFpsMosaico();
+                    double fpsVertical = VideoEngine.ObterFpsVertical();
+
+                    var metrics = new
+                    {
+                        cpu = cpuPorcentagem,
+                        ram = ramMb,
+                        fpsMosaico = fpsMosaico,
+                        fpsVertical = fpsVertical
+                    };
+
+                    string payload = JsonSerializer.Serialize(metrics);
+                    string message = $"event: metrics\ndata: {payload}\n\n";
+
+                    foreach (var client in clientes)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await client.WriteAsync(message);
+                                await client.Body.FlushAsync();
+                            }
+                            catch
+                            {
+                                // Limpeza tratada na escrita padrão
+                            }
+                        });
+                    }
+                }
+                catch
+                {
+                    // Evita falhar o loop de métricas
+                }
+            }
+        });
+    }
+
+    public static void PararEnvioMetrics()
+    {
+        _envioMetricsRodando = false;
+    }
 }
 
 // ===========================================================================
@@ -1709,6 +1797,40 @@ public static class VideoEngine
     private static bool _running = false;
     private static readonly Dictionary<string, PosicaoFeed> _posicoesAtuais = new();
     private const float LERP_FATOR = 0.50f;
+
+    // Métricas de FPS do Canvas Principal (Horizontal) e Mosaico Vertical
+    private static int _contadorFramesMosaico = 0;
+    private static int _contadorFramesVertical = 0;
+    private static double _ultimoFpsMosaico = 0.0;
+    private static double _ultimoFpsVertical = 0.0;
+    private static DateTime _ultimoTempoFpsMosaico = DateTime.UtcNow;
+    private static DateTime _ultimoTempoFpsVertical = DateTime.UtcNow;
+
+    public static double ObterFpsMosaico()
+    {
+        var agora = DateTime.UtcNow;
+        var diff = agora - _ultimoTempoFpsMosaico;
+        if (diff.TotalMilliseconds >= 1000)
+        {
+            int frames = Interlocked.Exchange(ref _contadorFramesMosaico, 0);
+            _ultimoFpsMosaico = Math.Round(frames / diff.TotalSeconds, 1);
+            _ultimoTempoFpsMosaico = agora;
+        }
+        return _ultimoFpsMosaico;
+    }
+
+    public static double ObterFpsVertical()
+    {
+        var agora = DateTime.UtcNow;
+        var diff = agora - _ultimoTempoFpsVertical;
+        if (diff.TotalMilliseconds >= 1000)
+        {
+            int frames = Interlocked.Exchange(ref _contadorFramesVertical, 0);
+            _ultimoFpsVertical = Math.Round(frames / diff.TotalSeconds, 1);
+            _ultimoTempoFpsVertical = agora;
+        }
+        return _ultimoFpsVertical;
+    }
 
     // Cache de Canvas e Placeholder Preto para alta performance (zero alocações contínuas de CPU)
     private static Mat? _canvasPrincipal;
@@ -1996,6 +2118,7 @@ public static class VideoEngine
             videoFrame.p_data = canvas.Data;
             videoFrame.timecode = timecodeComum;
             NDIlib.send_send_video_v2(pNdiSend, ref videoFrame);
+            _contadorFramesMosaico++;
 
             // -------------------------------------------------------------
             // Renderiza Canvas Vertical
@@ -2031,6 +2154,7 @@ public static class VideoEngine
             videoFrameV.p_data = canvasV.Data;
             videoFrameV.timecode = timecodeComum;
             NDIlib.send_send_video_v2(pNdiSendV, ref videoFrameV);
+            _contadorFramesVertical++;
 
             // -------------------------------------------------------------
             // Envia áudio mixado acumulado no mixer
@@ -2517,6 +2641,7 @@ class Program
         VideoEngine.Iniciar();
         AppConfig.MixerGlobal.Iniciar();
         SseManager.IniciarEnvioVu();
+        SseManager.IniciarEnvioMetrics();
 
         var builder = WebApplication.CreateBuilder(args);
         

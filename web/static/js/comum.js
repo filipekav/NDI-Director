@@ -613,6 +613,7 @@ function autoSalvarApelido(input, nome) {
 function conectarSSE() {
     const sseDot = isDock ? document.getElementById('status-conexao') : document.getElementById('sse-dot');
     const sseLabel = isDock ? document.getElementById('texto-conexao') : document.getElementById('sse-label');
+    const metricsContainer = document.getElementById('metrics-container');
 
     const src = new EventSource('/api/eventos');
     
@@ -623,6 +624,9 @@ function conectarSSE() {
         } else {
             sseDot.className = 'sse-dot conectado'; 
             sseLabel.textContent = 'Tempo real • Atualização instantânea'; 
+        }
+        if (metricsContainer) {
+            metricsContainer.style.display = 'flex';
         }
     };
     
@@ -656,6 +660,23 @@ function conectarSSE() {
             console.error("Erro ao processar dados de VU:", err);
         }
     });
+
+    src.addEventListener('metrics', (e) => {
+        try {
+            const metrics = JSON.parse(e.data);
+            const cpuVal = document.getElementById('metric-cpu');
+            const ramVal = document.getElementById('metric-ram');
+            const fpsMosaicoVal = document.getElementById('metric-fps-mosaico');
+            const fpsVerticalVal = document.getElementById('metric-fps-vertical');
+
+            if (cpuVal) cpuVal.textContent = metrics.cpu.toFixed(1) + '%';
+            if (ramVal) ramVal.textContent = metrics.ram.toFixed(0) + ' MB';
+            if (fpsMosaicoVal) fpsMosaicoVal.textContent = metrics.fpsMosaico.toFixed(1);
+            if (fpsVerticalVal) fpsVerticalVal.textContent = metrics.fpsVertical.toFixed(1);
+        } catch (err) {
+            console.error("Erro ao ler métricas de performance:", err);
+        }
+    });
     
     src.onerror = () => {
         if (isDock) {
@@ -664,6 +685,9 @@ function conectarSSE() {
         } else {
             sseDot.className = 'sse-dot erro';
             sseLabel.textContent = 'Falha SSE • Usando polling';
+        }
+        if (metricsContainer) {
+            metricsContainer.style.display = 'none';
         }
         src.close();
         setTimeout(conectarSSE, 5000);
