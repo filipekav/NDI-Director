@@ -2369,6 +2369,12 @@ public static class VideoEngine
         if (_textSizeCache.TryGetValue(key, out var tam))
             return tam;
 
+        // Prevenção contra Vazamento de Memória: limpa o cache se crescer demais (acima de 1000 chaves)
+        if (_textSizeCache.Count > 1000)
+        {
+            _textSizeCache.Clear();
+        }
+
         int tw, th;
         using (var imgMedir = new Bitmap(1, 1))
         using (var gMedir = Graphics.FromImage(imgMedir))
