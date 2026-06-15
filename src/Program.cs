@@ -1883,6 +1883,7 @@ public static class NdiScanner
                             if (AppConfig.FonteSolo == nomeAtivo) AppConfig.FonteSolo = null;
 
                             Console.WriteLine($"[Auto-Remove] Participante '{nomeAtivo}' saiu da reuniao. Camera removida do canvas.");
+                            SseManager.LogAtividade($"Participante '{nomeAtivo}' desconectou da rede local.", "aviso");
                         }
                     }
 
@@ -1912,6 +1913,7 @@ public static class NdiScanner
                             {
                                 var recPreview = new ReceptorNDI(nome, lowBandwidth: true);
                                 AppConfig.ReceptoresPreview[nome] = recPreview;
+                                SseManager.LogAtividade($"Nova fonte NDI detectada na rede local: '{nome}'", "normal");
                             }
                             catch (Exception ex)
                             {
@@ -1985,6 +1987,36 @@ public static class SseManager
                 catch
                 {
                     // Falhou, o cliente desconectado será limpo
+                }
+            });
+        }
+    }
+
+    public static void LogAtividade(string mensagem, string tipo = "normal")
+    {
+        HttpResponse[] clientes;
+        lock (LockClientes)
+        {
+            clientes = ClientesSSE.ToArray();
+        }
+
+        if (clientes.Length == 0) return;
+
+        string payloadJson = System.Text.Json.JsonSerializer.Serialize(new { msg = mensagem, tipo = tipo });
+        string ssePayload = $"event: log\ndata: {payloadJson}\n\n";
+
+        foreach (var client in clientes)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await client.WriteAsync(ssePayload);
+                    await client.Body.FlushAsync();
+                }
+                catch
+                {
+                    // Ignora
                 }
             });
         }
@@ -3213,11 +3245,13 @@ class Program
                             recParaParar = rec;
                         }
                         Console.WriteLine($"[-] Desconectado e removido da cena: {nome}");
+                        SseManager.LogAtividade($"'{nome}' removido da cena.", "normal");
                     }
                     else
                     {
                         // Se estiver gravando, mantemos o ReceptorNDI ativo em segundo plano!
                         Console.WriteLine($"[-] Removido da cena mas mantido em background para gravacao: {nome}");
+                        SseManager.LogAtividade($"'{nome}' removido da cena (mantido em background para gravação).", "normal");
                     }
                 }
                 else
@@ -3236,10 +3270,12 @@ class Program
                     {
                         AppConfig.ReceptoresAtivos[nome] = new ReceptorNDI(nome);
                         Console.WriteLine($"[+] Conectando e adicionando a cena: {nome}");
+                        SseManager.LogAtividade($"'{nome}' adicionado à cena.", "sucesso");
                     }
                     else
                     {
                         Console.WriteLine($"[+] Trazendo feed que ja estava gravando em background para a cena: {nome}");
+                        SseManager.LogAtividade($"'{nome}' adicionado à cena (já ativo em background).", "sucesso");
                     }
 
                     lock (AppConfig.LockVolumes)
@@ -3389,6 +3425,7 @@ class Program
 
             SseManager.NotificarClientes();
             Console.WriteLine($"[+] Solicitada gravacao de '{nome}' -> {caminhoArquivo}");
+            SseManager.LogAtividade($"Gravação individual iniciada para '{nome}'", "sucesso");
             return Results.Json(new { status = "ok", arquivo = caminhoArquivo });
         }
 
@@ -3423,6 +3460,7 @@ class Program
                 }
 
                 SseManager.NotificarClientes();
+                SseManager.LogAtividade($"Gravação individual interrompida para '{nome}'", "normal");
                 return Results.Json(new { status = "ok" });
             }
 
@@ -3445,21 +3483,25 @@ class Program
                 return Results.BadRequest(new { status = "limit_reached", message = "Limite maximo de 4 feeds ativos atingido." });
             }
 
+            string logMsg = "";
             lock (AppConfig.LockFontes)
             {
                 if (AppConfig.FonteHighlight == nome)
                 {
                     AppConfig.FonteHighlight = null;
                     Console.WriteLine($"[*] Highlight desativado para: {nome}");
+                    logMsg = $"Destaque desativado para '{nome}'.";
                 }
                 else
                 {
                     AppConfig.FonteHighlight = nome;
                     Console.WriteLine($"[*] Highlight ativado para: {nome}");
+                    logMsg = $"Destaque ativado para '{nome}'.";
                 }
             }
 
             SseManager.NotificarClientes();
+            SseManager.LogAtividade(logMsg, "normal");
             return Results.Json(new { status = "ok" });
         });
 
@@ -3471,22 +3513,26 @@ class Program
                 return Results.BadRequest(new { status = "limit_reached", message = "Limite maximo de 4 feeds ativos atingido." });
             }
 
+            string logMsg = "";
             lock (AppConfig.LockFontes)
             {
                 if (AppConfig.FonteSolo == nome)
                 {
                     AppConfig.FonteSolo = null;
                     Console.WriteLine($"[*] Solo desativado para: {nome}");
+                    logMsg = $"Modo Solo desativado para '{nome}'.";
                 }
                 else
                 {
                     AppConfig.FonteSolo = nome;
                     AppConfig.FonteHighlight = null; // Solo cancela highlight
                     Console.WriteLine($"[*] Solo ativado para: {nome}");
+                    logMsg = $"Modo Solo ativado para '{nome}'.";
                 }
             }
 
             SseManager.NotificarClientes();
+            SseManager.LogAtividade(logMsg, "normal");
             return Results.Json(new { status = "ok" });
         });
 
@@ -3531,6 +3577,7 @@ class Program
                         }
                         AppConfig.OrdemReceptores[novaPos] = nome;
                         Console.WriteLine($"[+] Conectando e definindo posicao {novaPos}: {nome}");
+                        SseManager.LogAtividade($"'{nome}' adicionado ao Mosaico na posição {novaPos + 1}.", "sucesso");
                     }
                     catch (Exception ex)
                     {
@@ -3555,6 +3602,7 @@ class Program
                         AppConfig.OrdemReceptores[novaPos] = AppConfig.OrdemReceptores[idxAtual];
                         AppConfig.OrdemReceptores[idxAtual] = temp;
                         Console.WriteLine($"[#] Troca de posicao: {nome} (de {idxAtual} para {novaPos})");
+                        SseManager.LogAtividade($"'{nome}' movido para a posição {novaPos + 1} (anterior: {idxAtual + 1}).", "normal");
                     }
                     else
                     {
@@ -3587,6 +3635,10 @@ class Program
                 }
 
                 SseManager.NotificarClientes();
+                string logMsg = string.IsNullOrEmpty(apelido)
+                    ? $"Apelido de GC removido para '{nome}'."
+                    : $"Apelido de GC de '{nome}' definido para '{apelido}'." ;
+                SseManager.LogAtividade(logMsg, "normal");
                 return Results.Json(new { status = "ok" });
             }
             catch (Exception ex)
@@ -3606,6 +3658,7 @@ class Program
                     Console.WriteLine($"[*] Fundo solicitado: {cor}");
                     AppConfig.SalvarConfiguracoes();
                     SseManager.NotificarClientes();
+                    SseManager.LogAtividade($"Cor de fundo do mosaico alterada para '{cor}'.", "normal");
                     return Results.Json(new { status = "ok" });
                 }
             }
@@ -3644,6 +3697,7 @@ class Program
             Console.WriteLine($"[*] Dimensoes do mosaico horizontal alteradas para: {w}x{h}");
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Resolução do mosaico horizontal alterada para {w}x{h}.", "normal");
             return Results.Json(new { status = "ok", w, h });
         });
 
@@ -3659,6 +3713,7 @@ class Program
             Console.WriteLine($"[*] Dimensoes do mosaico vertical alteradas para: {w}x{h}");
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Resolução do mosaico vertical alterada para {w}x{h}.", "normal");
             return Results.Json(new { status = "ok", w, h });
         });
 
@@ -3673,6 +3728,7 @@ class Program
             Console.WriteLine($"[*] Padding do mosaico definido para: {valor}px");
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Espaçamento (padding) do mosaico definido para {valor}px.", "normal");
             return Results.Json(new { status = "ok", paddingMosaico = valor });
         });
 
@@ -3716,6 +3772,7 @@ class Program
             Console.WriteLine($"[*] Mosaico vertical alterado para: {valor}");
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Layout do mosaico alterado para {(valor ? "Vertical" : "Padrão")}.", "normal");
             return Results.Json(new { status = "ok", mosaicoVertical = valor });
         });
 
@@ -3728,6 +3785,7 @@ class Program
                 Console.WriteLine($"[*] Formato de audio global alterado para: {formato}");
                 AppConfig.SalvarConfiguracoes();
                 SseManager.NotificarClientes();
+                SseManager.LogAtividade($"Formato de áudio global alterado para '{formato.ToUpper()}'.", "normal");
                 return Results.Json(new { status = "ok", formato = formato });
             }
             return Results.BadRequest(new { status = "error", message = "Formato invalido. Escolha 'pcm' ou 'aac'." });
@@ -3740,6 +3798,7 @@ class Program
             Console.WriteLine($"[*] Apagar arquivos temporários alterado para: {valor}");
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Configuração de apagar temporários {(valor ? "ativada" : "desativada")}.", "normal");
             return Results.Json(new { status = "ok", apagarTemporarios = valor });
         });
 
@@ -3750,6 +3809,7 @@ class Program
             Console.WriteLine($"[*] Exibição de logs de diagnóstico alterada para: {valor}");
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Logs de diagnóstico no console {(valor ? "habilitados" : "desabilitados")}.", "normal");
             return Results.Json(new { status = "ok", habilitarLogsDiagnostico = valor });
         });
 
@@ -3774,6 +3834,7 @@ class Program
             
             AppConfig.SalvarConfiguracoes();
             SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Pre-visualizações em tempo real (Live Preview) {(valor ? "habilitadas" : "desabilitadas")}.", "normal");
             return Results.Json(new { status = "ok", habilitarLivePreview = valor });
         });
 
@@ -3786,6 +3847,7 @@ class Program
                 Console.WriteLine($"[*] Qualidade de gravação global alterada para: {qualidade}");
                 AppConfig.SalvarConfiguracoes();
                 SseManager.NotificarClientes();
+                SseManager.LogAtividade($"Qualidade de gravação global alterada para '{qualidade}'.", "normal");
                 return Results.Json(new { status = "ok", qualidade = qualidade });
             }
             return Results.BadRequest(new { status = "error", message = "Qualidade invalida. Escolha 'alta', 'media' ou 'baixa'." });

@@ -209,6 +209,17 @@
         </div>
     </div>
 
+    <!-- Barra de Atividade do Sistema -->
+    <div class="barra-logs" id="barra-logs">
+        <span class="barra-logs-conteudo" id="barra-logs-conteudo">🤖 Sistema inicializado. Aguardando atividade...</span>
+        <button class="barra-logs-historico-btn" onclick="alternarHistoricoLogs(event)">📋 Histórico</button>
+    </div>
+    <div class="modal-historico-logs" id="modal-historico-logs">
+        <div id="lista-historico-logs">
+            <!-- As últimas mensagens de log aparecerão aqui -->
+        </div>
+    </div>
+
     <script src="/static/js/comum.js"></script>
 </body>
 </html>

@@ -1550,3 +1550,91 @@ body.modo-dock .metrics-container {
 .net-status-icon.danger {
     color: var(--danger); /* Vermelho */
 }
+
+/* Barra de Logs de Atividade do Sistema */
+body {
+    padding-bottom: 45px !important; /* Abre espaço para a barra fixa no rodapé */
+}
+.barra-logs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: #11131f;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    font-family: monospace;
+    z-index: 1000;
+}
+.barra-logs-conteudo {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    text-align: left;
+}
+.barra-logs-historico-btn {
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.74rem;
+}
+.barra-logs-historico-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+.modal-historico-logs {
+    display: none;
+    position: fixed;
+    bottom: 38px;
+    right: 15px;
+    width: 420px;
+    max-height: 250px;
+    background: #11131f;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.55);
+    z-index: 999;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 0.74rem;
+    color: var(--text-main);
+    text-align: left;
+}
+.modal-historico-logs.aberto {
+    display: block;
+}
+.linha-log {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    line-height: 1.3;
+}
+.linha-log:last-child {
+    border-bottom: none;
+}
+.linha-log .log-timestamp {
+    color: #6366f1;
+    margin-right: 6px;
+    font-weight: 600;
+}
+.linha-log.log-erro {
+    color: var(--error);
+}
+.linha-log.log-aviso {
+    color: var(--warning);
+}
+.linha-log.log-sucesso {
+    color: #10b981;
+}

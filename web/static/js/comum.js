@@ -757,6 +757,15 @@ function conectarSSE() {
             console.error("Erro ao ler métricas de performance:", err);
         }
     });
+
+    src.addEventListener('log', (e) => {
+        try {
+            const data = JSON.parse(e.data);
+            adicionarLogVisual(data.msg, data.tipo);
+        } catch (err) {
+            console.error("Erro ao processar log SSE:", err);
+        }
+    });
     
     src.onerror = () => {
         if (isDock) {
@@ -866,3 +875,66 @@ function aplicarResolucaoVertical() {
     }
     definirResolucaoVertical(w, h);
 }
+
+// ===========================================================================
+// SISTEMA DE LOGS DE ATIVIDADE VISUAL
+// ===========================================================================
+function adicionarLogVisual(mensagem, tipo = 'normal') {
+    const agora = new Date();
+    const hora = agora.toLocaleTimeString('pt-BR', { hour12: false });
+    
+    // Atualiza a barra inferior com a última mensagem
+    const barraConteudo = document.getElementById('barra-logs-conteudo');
+    if (barraConteudo) {
+        let prefixo = "🤖 ";
+        if (tipo === 'erro') prefixo = "❌ ";
+        else if (tipo === 'aviso') prefixo = "⚠️ ";
+        else if (tipo === 'sucesso') prefixo = "✅ ";
+        
+        barraConteudo.innerHTML = `<span class="log-timestamp">[${hora}]</span> ${prefixo}${mensagem}`;
+        
+        // Efeito visual rápido de brilho na barra
+        const barraLogs = document.getElementById('barra-logs');
+        if (barraLogs) {
+            barraLogs.style.background = '#1e2238';
+            setTimeout(() => {
+                barraLogs.style.background = '#11131f';
+            }, 300);
+        }
+    }
+    
+    // Adiciona ao histórico do modal
+    const listaLogs = document.getElementById('lista-historico-logs');
+    if (listaLogs) {
+        const div = document.createElement('div');
+        div.className = `linha-log log-${tipo}`;
+        div.innerHTML = `<span class="log-timestamp">[${hora}]</span> ${mensagem}`;
+        
+        // Insere no topo
+        listaLogs.insertBefore(div, listaLogs.firstChild);
+        
+        // Limita o histórico a 50 logs no DOM
+        while (listaLogs.children.length > 50) {
+            listaLogs.removeChild(listaLogs.lastChild);
+        }
+    }
+}
+
+function alternarHistoricoLogs(event) {
+    if (event) event.stopPropagation();
+    const modalLogs = document.getElementById('modal-historico-logs');
+    if (modalLogs) {
+        modalLogs.classList.toggle('aberto');
+    }
+}
+
+// Fecha o modal de logs ao clicar fora
+document.addEventListener('click', (e) => {
+    const modalLogs = document.getElementById('modal-historico-logs');
+    const btnLogs = document.querySelector('.barra-logs-historico-btn');
+    if (modalLogs && modalLogs.classList.contains('aberto')) {
+        if (!modalLogs.contains(e.target) && e.target !== btnLogs) {
+            modalLogs.classList.remove('aberto');
+        }
+    }
+});
