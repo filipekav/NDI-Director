@@ -8,6 +8,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build & Publish
@@ -29,7 +32,7 @@ jobs:
       run: dotnet build src/NdiDirector.csproj -c Release --no-restore
 
     - name: Publish
-      run: dotnet publish src/NdiDirector.csproj -c Release -o dist --no-restore
+      run: dotnet publish src/NdiDirector.csproj -c Release -r win-x64 --self-contained true -o dist
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
@@ -37,3 +40,14 @@ jobs:
         name: NdiDirector-dist
         path: dist/
         retention-days: 30
+
+    - name: Zip Build Folder for Release
+      if: github.event_name == 'release'
+      run: Compress-Archive -Path dist\* -DestinationPath NdiDirector_win-x64.zip
+
+    - name: Upload Binaries to Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: NdiDirector_win-x64.zip
+
