@@ -1155,6 +1155,8 @@ public class GravadorFFmpeg
             _stdinVideo = _procVideo.StandardInput.BaseStream;
 
             string rotuloLog = usarNVENC ? "NVENC" : "CPU";
+            SseManager.LogAtividade($"[Gravador] Codificação de vídeo para '{NomeFonte}' iniciada usando {(usarNVENC ? "GPU (NVENC)" : "CPU (libx264)")}.", "normal");
+
             Task.Run(() =>
             {
                 try
@@ -1189,6 +1191,7 @@ public class GravadorFFmpeg
                         if (Gravando && _procVideo == procAgendado && _procVideo != null && _procVideo.HasExited && _procVideo.ExitCode != 0)
                         {
                             Console.WriteLine($"[!] FFmpeg com NVENC terminou imediatamente com código {_procVideo.ExitCode}. Iniciando fallback para CPU...");
+                            SseManager.LogAtividade($"[Gravador] Falha ao codificar via GPU para '{NomeFonte}'. Iniciando fallback para CPU (libx264)...", "aviso");
                             try { _stdinVideo?.Close(); } catch { }
                             IniciarVideoProcess(usarNVENC: false);
                         }
@@ -1201,6 +1204,7 @@ public class GravadorFFmpeg
             if (usarNVENC)
             {
                 Console.WriteLine($"[!] Falha ao iniciar FFmpeg acelerado por GPU: {ex.Message}. Tentando fallback direto para CPU...");
+                SseManager.LogAtividade($"[Gravador] Erro ao iniciar codificação via GPU para '{NomeFonte}'. Iniciando fallback para CPU (libx264)...", "aviso");
                 IniciarVideoProcess(usarNVENC: false);
             }
             else

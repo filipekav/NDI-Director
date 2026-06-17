@@ -162,7 +162,7 @@ function carregarFontes() {
             } else {
                 const btnGravarText = fonte.gravando 
                     ? (isDock ? '🔴 Parar Gravação' : '🔴 Gravando (Parar)') 
-                    : '⏺️ Gravar Feed (GPU)';
+                    : '⏺️ Gravar Feed';
                 
                 gravarHtml = `
                     <button class="btn btn-gravar ${fonte.gravando ? 'gravando' : ''}" onclick="toggleGravar('${fonte.nome}', ${fonte.gravando})">
