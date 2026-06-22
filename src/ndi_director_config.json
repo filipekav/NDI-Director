@@ -11,6 +11,7 @@
   "CanvasAlturaHorizontal": 850,
   "CanvasLarguraVertical": 550,
   "CanvasAlturaVertical": 850,
+  "LimiteSessoesNvenc": 8,
   "ApelidosFontes": {},
   "VolumesFontes": {}
 }

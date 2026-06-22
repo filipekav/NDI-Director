@@ -14,21 +14,42 @@
             <div style="display: flex; align-items: center; gap: 8px;">
                 <!-- Métricas de Desempenho Leves -->
                 <div class="metrics-container" id="metrics-container" style="display: none;">
-                    <div class="metric-item" title="Uso de Processador do NDI Director">
-                        <span class="metric-label">CPU:</span>
-                        <span class="metric-value" id="metric-cpu">--%</span>
+                    <!-- Grupo Sistema -->
+                    <div class="metrics-group">
+                        <div class="metric-item" title="Uso de Processador do NDI Director">
+                            <span class="metric-label">CPU:</span>
+                            <span class="metric-value" id="metric-cpu">--%</span>
+                        </div>
+                        <div class="metric-item" title="Uso de Memória RAM do NDI Director">
+                            <span class="metric-label">RAM:</span>
+                            <span class="metric-value" id="metric-ram">-- MB</span>
+                        </div>
                     </div>
-                    <div class="metric-item" title="Uso de Memória RAM do NDI Director">
-                        <span class="metric-label">RAM:</span>
-                        <span class="metric-value" id="metric-ram">-- MB</span>
+                    
+                    <!-- Grupo Mosaicos -->
+                    <div class="metrics-group">
+                        <div class="metric-item" title="Taxa de quadros do Mosaico Principal">
+                            <span class="metric-label">MOSAICO:</span>
+                            <span class="metric-value" id="metric-fps-mosaico">-- FPS</span>
+                        </div>
+                        <div class="metric-item" title="Taxa de quadros do Mosaico Vertical">
+                            <span class="metric-label">VERTICAL:</span>
+                            <span class="metric-value" id="metric-fps-vertical">-- FPS</span>
+                        </div>
                     </div>
-                    <div class="metric-item" title="Taxa de quadros do Mosaico Principal">
-                        <span class="metric-label">MOSAICO:</span>
-                        <span class="metric-value" id="metric-fps-mosaico">-- FPS</span>
-                    </div>
-                    <div class="metric-item" title="Taxa de quadros do Mosaico Vertical">
-                        <span class="metric-label">VERTICAL:</span>
-                        <span class="metric-value" id="metric-fps-vertical">-- FPS</span>
+
+                    <!-- Grupo GPU NVIDIA -->
+                    <div class="metrics-group" id="metrics-gpu-group" style="display: none;">
+                        <div class="metric-item" title="Uso Geral da GPU NVIDIA (3D/Graphics) & Memória de Vídeo (VRAM)">
+                            <span class="metric-label">GPU:</span>
+                            <span class="metric-value" id="metric-gpu">--%</span>
+                            <span class="metric-value-sub" id="metric-vram">--</span>
+                        </div>
+                        <div class="metric-item" title="Carga do chip encoder NVIDIA (NVENC) & Sessões ativas/limite">
+                            <span class="metric-label">NVENC:</span>
+                            <span class="metric-value" id="metric-nvenc">--%</span>
+                            <span class="metric-value-sub" id="metric-nvenc-sessions">--</span>
+                        </div>
                     </div>
                 </div>
 
@@ -178,6 +199,16 @@
                     <div style="display: flex; align-items: center; gap: 15px; margin-top: 10px;">
                         <input type="range" id="range-padding-mosaico" min="0" max="100" value="20" class="volume-slider" style="flex: 1; height: 6px;" oninput="atualizarPaddingVisual(this.value)" onchange="definirPaddingMosaico(this.value)">
                         <span id="padding-value" style="font-weight: 700; min-width: 55px; text-align: right; color: var(--text-main); font-family: monospace; font-size: 0.95rem;">20px</span>
+                    </div>
+                </div>
+
+                <!-- Seção 7b: Limite de Sessões NVENC -->
+                <div class="config-section">
+                    <span class="config-label">⚡ Limite de Sessões NVENC NVIDIA:</span>
+                    <p class="config-desc">Define o limite máximo de sessões simultâneas de codificação de vídeo acelerada por hardware (NVENC) no seu PC (o limite por software em placas GeForce padrão é 8).</p>
+                    <div style="display: flex; align-items: center; gap: 15px; margin-top: 10px;">
+                        <input type="range" id="range-limite-nvenc" min="1" max="32" value="8" class="volume-slider" style="flex: 1; height: 6px;" oninput="atualizarLimiteNvencVisual(this.value)" onchange="definirLimiteNvenc(this.value)">
+                        <span id="limite-nvenc-value" style="font-weight: 700; min-width: 55px; text-align: right; color: var(--text-main); font-family: monospace; font-size: 0.95rem;">8</span>
                     </div>
                 </div>
 

@@ -343,6 +343,13 @@ function carregarConfiguracoes() {
             atualizarPaddingVisual(dados.paddingMosaico);
         }
 
+        // Atualiza o slider de limite NVENC
+        const rangeLimiteNvenc = document.getElementById('range-limite-nvenc');
+        if (rangeLimiteNvenc && dados.limiteSessoesNvenc !== undefined) {
+            rangeLimiteNvenc.value = dados.limiteSessoesNvenc;
+            atualizarLimiteNvencVisual(dados.limiteSessoesNvenc);
+        }
+
         // Atualiza inputs de resoluções de canvas
         const inputW = document.getElementById('input-canvas-w');
         const inputH = document.getElementById('input-canvas-h');
@@ -425,6 +432,18 @@ function atualizarPaddingVisual(valor) {
 
 function definirPaddingMosaico(valor) {
     fetch('/api/configuracoes/definir_padding/' + valor, { method: 'POST' })
+    .then(res => {
+        if (!res.ok) return res.json().then(e => alert(e.message));
+    });
+}
+
+function atualizarLimiteNvencVisual(valor) {
+    const valSpan = document.getElementById('limite-nvenc-value');
+    if (valSpan) valSpan.textContent = valor;
+}
+
+function definirLimiteNvenc(valor) {
+    fetch('/api/configuracoes/definir_limite_nvenc/' + valor, { method: 'POST' })
     .then(res => {
         if (!res.ok) return res.json().then(e => alert(e.message));
     });
@@ -702,6 +721,43 @@ function conectarSSE() {
             if (ramVal) ramVal.textContent = metrics.ram.toFixed(0) + ' MB';
             if (fpsMosaicoVal) fpsMosaicoVal.textContent = metrics.fpsMosaico.toFixed(1);
             if (fpsVerticalVal) fpsVerticalVal.textContent = metrics.fpsVertical.toFixed(1);
+
+            // Atualiza métricas da GPU NVIDIA se disponíveis
+            const gpuGroup = document.getElementById('metrics-gpu-group');
+            const gpuVal = document.getElementById('metric-gpu');
+            const vramVal = document.getElementById('metric-vram');
+            const nvencVal = document.getElementById('metric-nvenc');
+            const nvencSessionsVal = document.getElementById('metric-nvenc-sessions');
+
+            if (metrics.gpuLoad !== null && metrics.gpuLoad !== undefined) {
+                if (gpuVal) gpuVal.textContent = metrics.gpuLoad.toFixed(0) + '%';
+                
+                if (metrics.vramUsed !== null && metrics.vramUsed !== undefined && metrics.vramTotal !== null && metrics.vramTotal !== undefined) {
+                    const usedGb = (metrics.vramUsed / 1024).toFixed(1);
+                    const totalGb = (metrics.vramTotal / 1024).toFixed(1);
+                    if (vramVal) vramVal.textContent = `(${usedGb}/${totalGb} GB)`;
+                } else {
+                    if (vramVal) vramVal.textContent = '';
+                }
+
+                if (metrics.nvencLoad !== null && metrics.nvencLoad !== undefined) {
+                    if (nvencVal) nvencVal.textContent = metrics.nvencLoad.toFixed(0) + '%';
+                } else {
+                    if (nvencVal) nvencVal.textContent = '--%';
+                }
+
+                if (metrics.nvencSessions !== null && metrics.nvencSessions !== undefined) {
+                    const limit = (metrics.nvencLimit !== null && metrics.nvencLimit !== undefined) ? metrics.nvencLimit : 8;
+                    if (nvencSessionsVal) nvencSessionsVal.textContent = `(${metrics.nvencSessions}/${limit})`;
+                } else {
+                    if (nvencSessionsVal) nvencSessionsVal.textContent = '';
+                }
+
+                if (gpuGroup) gpuGroup.style.display = 'flex';
+            } else {
+                if (gpuGroup) gpuGroup.style.display = 'none';
+            }
+
             // Atualiza status de rede para feeds ativos no payload
             const fontesAtualizadas = new Set();
             if (metrics.fontes && Array.isArray(metrics.fontes)) {
