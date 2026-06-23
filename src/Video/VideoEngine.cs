@@ -278,8 +278,7 @@ public static class VideoEngine
             if (framesAtivos.Count == 0)
             {
                 _posicoesAtuais.Clear();
-                Cv2.PutText(canvas, "Aguardando Fontes...", new OpenCvSharp.Point(700, 540),
-                    HersheyFonts.HersheySimplex, 1.5, new Scalar(100, 100, 100, 255), 3, LineTypes.AntiAlias);
+                DesenharStandbyScreen(canvas, false, _contadorFramesMosaico);
             }
             else
             {
@@ -346,8 +345,7 @@ public static class VideoEngine
 
             if (framesAtivos.Count == 0)
             {
-                Cv2.PutText(canvasV, "Aguardando...", new OpenCvSharp.Point(60, currentHV / 2),
-                    HersheyFonts.HersheySimplex, 1.0, new Scalar(100, 100, 100, 255), 2, LineTypes.AntiAlias);
+                DesenharStandbyScreen(canvasV, true, _contadorFramesVertical);
             }
             else
             {
@@ -414,6 +412,197 @@ public static class VideoEngine
             NDIlib.send_destroy(pNdiSendA);
         }
         Marshal.FreeHGlobal(pAudioBufferNativo);
+    }
+
+    private static void DesenharStandbyScreen(Mat canvas, bool isVertical, int contadorFrames)
+    {
+        int w = canvas.Cols;
+        int h = canvas.Rows;
+        int cx = w / 2;
+        int cy = h / 2;
+
+        // Linhas de Safe Area com cantoneiras discretas em "L" (Aspecto Broadcast / Cinematográfico)
+        var corGrid = new Scalar(35, 35, 35, 255);
+        var corLinhas = new Scalar(55, 55, 55, 255);
+        
+        // Linhas guias centrais discretas (Crosshair)
+        Cv2.Line(canvas, new OpenCvSharp.Point(cx - 15, cy), new OpenCvSharp.Point(cx + 15, cy), corLinhas, 1);
+        Cv2.Line(canvas, new OpenCvSharp.Point(cx, cy - 15), new OpenCvSharp.Point(cx, cy + 15), corLinhas, 1);
+
+        // Função local rápida para desenhar cantoneiras de cantos (L-shaped crop marks)
+        void DesenharCantoneirasL(int rectW, int rectH, Scalar cor, int lineW = 1, int len = 15)
+        {
+            int rx = cx - rectW / 2;
+            int ry = cy - rectH / 2;
+            int rx2 = cx + rectW / 2;
+            int ry2 = cy + rectH / 2;
+
+            // Canto superior esquerdo
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx, ry), new OpenCvSharp.Point(rx + len, ry), cor, lineW);
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx, ry), new OpenCvSharp.Point(rx, ry + len), cor, lineW);
+
+            // Canto superior direito
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx2, ry), new OpenCvSharp.Point(rx2 - len, ry), cor, lineW);
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx2, ry), new OpenCvSharp.Point(rx2, ry + len), cor, lineW);
+
+            // Canto inferior esquerdo
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx, ry2), new OpenCvSharp.Point(rx + len, ry2), cor, lineW);
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx, ry2), new OpenCvSharp.Point(rx, ry2 - len), cor, lineW);
+
+            // Canto inferior direito
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx2, ry2), new OpenCvSharp.Point(rx2 - len, ry2), cor, lineW);
+            Cv2.Line(canvas, new OpenCvSharp.Point(rx2, ry2), new OpenCvSharp.Point(rx2, ry2 - len), cor, lineW);
+        }
+
+        // Safe Action (90% do tamanho total)
+        DesenharCantoneirasL((int)(w * 0.9), (int)(h * 0.9), corGrid, 1, isVertical ? 10 : 20);
+
+        // Safe Title (80% do tamanho total)
+        DesenharCantoneirasL((int)(w * 0.8), (int)(h * 0.8), corGrid, 1, isVertical ? 8 : 15);
+
+        // Círculo Central Pulsante e Vetorscópio Técnico
+        double tempo = contadorFrames * 0.08;
+        float pulse = (float)(Math.Sin(tempo) * 0.5 + 0.5);
+        int raioBase = isVertical ? 100 : 130;
+        int raioPulse = raioBase + (int)(pulse * 15);
+        
+        byte alphaPulse = (byte)(80 - (pulse * 50));
+        Cv2.Circle(canvas, cx, cy, raioPulse, new Scalar(70, 70, 70, alphaPulse), 2, LineTypes.AntiAlias);
+        
+        Cv2.Circle(canvas, cx, cy, raioBase, new Scalar(20, 20, 20, 255), -1, LineTypes.AntiAlias);
+        Cv2.Circle(canvas, cx, cy, raioBase, new Scalar(60, 60, 60, 255), 2, LineTypes.AntiAlias);
+
+        // Desenha as marcas radiais (ticks) de 30 em 30 graus no círculo (como um Vetorscópio)
+        for (int a = 0; a < 360; a += 30)
+        {
+            double rad = a * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+            int xStart = cx + (int)(raioBase * cos);
+            int yStart = cy + (int)(raioBase * sin);
+            int xEnd = cx + (int)((raioBase - 8) * cos);
+            int yEnd = cy + (int)((raioBase - 8) * sin);
+            Cv2.Line(canvas, new OpenCvSharp.Point(xStart, yStart), new OpenCvSharp.Point(xEnd, yEnd), new Scalar(65, 65, 65, 255), 1, LineTypes.AntiAlias);
+        }
+
+        int ledY = cy - raioBase + 30;
+        byte rLed = (byte)(180 + (pulse * 75));
+        Cv2.Circle(canvas, cx, ledY, 6, new Scalar(0, 0, rLed, 255), -1, LineTypes.AntiAlias);
+
+        // Barra Técnica de Calibração (SMPTE Color Bars Estilizada) no rodapé
+        int numCores = 8;
+        int largBloco = isVertical ? 12 : 24;
+        int totalWidth = numCores * largBloco;
+        int barX = cx - totalWidth / 2;
+        int barY = h - (isVertical ? 50 : 40);
+        int barH = isVertical ? 8 : 14;
+
+        Scalar[] coresCalibracaoSup = new Scalar[]
+        {
+            new Scalar(255, 255, 255, 255), // Branco (BGRA no OpenCV)
+            new Scalar(0, 255, 255, 255),   // Amarelo
+            new Scalar(255, 255, 0, 255),   // Ciano
+            new Scalar(0, 255, 0, 255),     // Verde
+            new Scalar(255, 0, 255, 255),   // Magenta
+            new Scalar(0, 0, 255, 255),     // Vermelho
+            new Scalar(255, 0, 0, 255),     // Azul
+            new Scalar(30, 30, 30, 255)     // Cinza Escuro
+        };
+
+        Scalar[] coresCalibracaoInf = new Scalar[]
+        {
+            new Scalar(255, 0, 0, 255),     // Azul
+            new Scalar(15, 15, 15, 255),    // Preto
+            new Scalar(255, 0, 255, 255),   // Magenta
+            new Scalar(15, 15, 15, 255),    // Preto
+            new Scalar(255, 255, 0, 255),   // Ciano
+            new Scalar(255, 255, 255, 255), // Branco
+            new Scalar(15, 15, 15, 255),    // Preto
+            new Scalar(180, 180, 180, 255)  // Cinza Claro
+        };
+
+        int barHSup = (int)(barH * 0.7);
+        int barHInf = barH - barHSup;
+
+        for (int i = 0; i < numCores; i++)
+        {
+            // Barra superior (70% da altura)
+            Cv2.Rectangle(canvas, 
+                new OpenCvSharp.Rect(barX + i * largBloco, barY, largBloco, barHSup), 
+                coresCalibracaoSup[i], 
+                -1);
+
+            // Barra inferior (30% da altura)
+            Cv2.Rectangle(canvas, 
+                new OpenCvSharp.Rect(barX + i * largBloco, barY + barHSup, largBloco, barHInf), 
+                coresCalibracaoInf[i], 
+                -1);
+        }
+        
+        // Borda cinza delimitadora ao redor do bloco todo
+        Cv2.Rectangle(canvas, 
+            new OpenCvSharp.Rect(barX, barY, totalWidth, barH), 
+            new Scalar(50, 50, 50, 255), 
+            1);
+
+        // Textos e Metadados (usando GDI+)
+        string textoTitulo = "NDI DIRECTOR";
+        string textoSub = isVertical ? "STANDBY" : "AGUARDANDO FONTES";
+        
+        // Timecode SMPTE real com precisão de frames (29.97 fps)
+        int frameNum = contadorFrames % 30;
+        string textoRelogio = DateTime.Now.ToString("HH:mm:ss") + ":" + frameNum.ToString("D2");
+
+        int sizeTitulo = isVertical ? 24 : 32;
+        int sizeSub = isVertical ? 14 : 18;
+        int sizeRelogio = isVertical ? 16 : 20;
+
+        var fontTitulo = ObterFonteAnton(sizeTitulo);
+        var fontSub = ObterFonteAnton(sizeSub);
+        var fontRelogio = ObterFonteAnton(sizeRelogio);
+
+        var (twT, thT) = ObterTamanhoTexto(textoTitulo, fontTitulo);
+        var (twS, thS) = ObterTamanhoTexto(textoSub, fontSub);
+        var (twR, thR) = ObterTamanhoTexto(textoRelogio, fontRelogio);
+
+        using (var bmp = new Bitmap(w, h, (int)canvas.Step(), PixelFormat.Format32bppArgb, canvas.Data))
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+
+            // 1. Título e subtítulo no centro
+            using var brushTitulo = new SolidBrush(Color.FromArgb(240, 240, 240));
+            g.DrawString(textoTitulo, fontTitulo, brushTitulo, cx - twT / 2, cy - 15);
+
+            byte alphaTexto = (byte)(140 + (pulse * 80));
+            using var brushSub = new SolidBrush(Color.FromArgb(alphaTexto, 180, 180, 180));
+            g.DrawString(textoSub, fontSub, brushSub, cx - twS / 2, cy + 25);
+
+            // 2. Relógio (Timecode SMPTE) no rodapé direito
+            using var brushRelogio = new SolidBrush(Color.FromArgb(120, 120, 120));
+            int rx = w - twR - (isVertical ? 20 : 40);
+            int ry = h - thR - (isVertical ? 20 : 30);
+            g.DrawString(textoRelogio, fontRelogio, brushRelogio, rx, ry);
+            
+            // 3. Texto STANDBY fixo no rodapé esquerdo
+            string textoStandby = "STANDBY";
+            int lx = isVertical ? 20 : 40;
+            g.DrawString(textoStandby, fontRelogio, brushRelogio, lx, ry);
+
+            // 4. Metadados do Sinal no canto superior esquerdo (discretos e em fonte padrão compacta)
+            using (var fontMeta = new Font("Arial", isVertical ? 10 : 12, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var brushMeta = new SolidBrush(Color.FromArgb(100, 140, 140, 140)))
+            {
+                int mx = isVertical ? 20 : 40;
+                int my = isVertical ? 20 : 30;
+                int espacamento = isVertical ? 12 : 16;
+
+                g.DrawString("SYNC: INTERNAL", fontMeta, brushMeta, mx, my);
+                g.DrawString($"FORMAT: {w}x{h} @ 29.97 FPS", fontMeta, brushMeta, mx, my + espacamento);
+                g.DrawString("AUDIO: CH1/CH2 (TEST TONE)", fontMeta, brushMeta, mx, my + espacamento * 2);
+                g.DrawString("NDI ENGINE: v5.5 (BGRA)", fontMeta, brushMeta, mx, my + espacamento * 3);
+            }
+        }
     }
 
     private static Dictionary<string, PosicaoFeed> CalcularPosicoesAlvo(

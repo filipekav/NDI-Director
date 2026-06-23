@@ -24,12 +24,12 @@ NDI Director/
 │   ├── Config/                 # Gerenciamento de configurações e JSON (AppConfig.cs, ConfigData.cs)
 │   ├── Gpu/                    # Telemetria e monitoramento de GPU NVIDIA (NvidiaGpuMonitor.cs)
 │   ├── Gravacao/               # Gravação individual via FFmpeg (GravadorFFmpeg.cs, MuxingStatus.cs)
-│   ├── Helpers/                # Utilitários gerais (CaminhoHelper.cs, TimePrefixedTextWriter.cs)
+│   ├── Helpers/                # Utilitários gerais (CaminhoHelper.cs, TimePrefixedTextWriter.cs, LogManager.cs, PainelControleForm.cs)
 │   ├── Ndi/                    # Descoberta e recepção de feeds NDI (NdiScanner.cs, ReceptorNDI.cs)
 │   ├── Video/                  # Motor de vídeo e composição do mosaico NDI (VideoEngine.cs, PosicaoFeed.cs)
 │   ├── Web/                    # Servidor Web, SSE e rotas da API (SseManager.cs)
 │   │   └── Routes/             # Rotas mapeadas por domínio (ConfigRoutes.cs, FontesRoutes.cs, GravacaoRoutes.cs, SseRoutes.cs)
-│   ├── Program.cs              # Bootstrap principal (inicialização limpa e mapeamento de rotas)
+│   ├── Program.cs              # Bootstrap principal (inicializa interface gráfica WinForms e servidores)
 │   └── NdiDirector.csproj
 ├── web/                        # Interface web (HTML/CSS/JS)
 │   ├── static/                 # Recursos estáticos
@@ -60,7 +60,7 @@ cd src
 dotnet run
 ```
 
-O servidor web será iniciado na porta **8634**. Acesse:
+Ao executar o comando no Windows, o sistema inicializará a **janela gráfica de controle nativa (WinForms)** contendo uma área dedicada para exibição de logs em tempo real (TUI). O servidor web será iniciado na porta **8634** em background. Acesse:
 - **Painel principal:** http://localhost:8634/
 - **Dock OBS:** http://localhost:8634/dock
 
@@ -73,7 +73,7 @@ cd src
 dotnet publish -c Release -o ../dist
 ```
 
-A pasta `dist/` conterá todos os arquivos necessários para executar em qualquer máquina Windows com .NET 8 Runtime instalado. Basta copiar a pasta inteira e executar `NdiDirector.exe`.
+A pasta `dist/` conterá todos os arquivos necessários para executar em qualquer máquina Windows com .NET 8 Runtime instalado (incluindo o executável principal, os templates HTML e a fonte Anton). Basta copiar a pasta inteira e executar `NdiDirector.exe`.
 
 ---
 
@@ -186,13 +186,17 @@ Sempre que você fizer um push para a branch `main` ou criar uma Pull Request, o
 
 ## Funcionalidades
 
+- **Interface Desktop WinForms:** Janela gráfica de controle principal nativa no Windows, com suporte a minimização para a bandeja do sistema (System Tray), ícone personalizado de status e caixa de confirmação nativa ao fechar para evitar interrupções acidentais.
+- **TUI de Logs Integrada:** Monitoramento detalhado de eventos de conexão, conexões NDI, logs de gravação e telemetria integrado diretamente na tela da interface gráfica.
 - **Arquitetura Modular:** Separação clara de responsabilidades por domínios (Áudio, Vídeo, Configuração, GPU, Gravação, NDI, Web/SSE).
 - **Descoberta automática** de fontes NDI na rede local.
 - **Mosaico de até 4 câmeras** com layout automático (horizontal/vertical) e renderização via NDI.
 - **Highlight e Solo** para destaque de participantes na tela.
-- **Gravação individual** por participante com FFmpeg (com suporte a NVENC via GPU ou CPU com detecção automática).
-- **Telemetria de GPU NVIDIA:** Exibição da carga do codificador (NVENC) e consumo de VRAM em tempo real na interface.
+- **Gravação individual** por participante com FFmpeg (com suporte a NVENC via GPU ou CPU com detecção automática e fallback dinâmico).
+- **Telemetria de GPU NVIDIA:** Exibição da carga do codificador (NVENC) e consumo de VRAM em tempo real na interface, com inicialização assíncrona inteligente.
 - **Mixer de áudio** em tempo real com controle de volume independente por fonte e medidores (VU) integrados.
 - **Lower-thirds (GC)** com fonte customizada, apelidos editáveis e suporte a estilos dinâmicos.
+- **Tela de Standby NDI Premium:** Visual de gerador de caracteres e sinal profissional, contendo Safe Areas (90% Action e 80% Title) em cantoneiras em "L", vetorscópio graduado (ticks de 30°), barras de calibração dupla (SMPTE Color Bars), metadados do sinal ativos (formato, FPS, áudio) e Timecode SMPTE real contando quadros (:ff), ativo em qualquer cor de fundo.
 - **Saída NDI tripla:** Mosaico horizontal, vertical e feed de áudio mixado.
+- **Painel Web Widescreen Adaptativo:** Interface web responsiva com largura otimizada de até 1600px para aproveitar melhor as laterais de monitores widescreen e ultrawide.
 - **SSE (Server-Sent Events)** para atualizações e telemetrias instantâneas de VU e hardware no painel web.

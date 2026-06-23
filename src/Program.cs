@@ -7,6 +7,7 @@ using NewTek.NDI;
 // ===========================================================================
 class Program
 {
+    [STAThread]
     static void Main(string[] args)
     {
         Console.SetOut(new TimePrefixedTextWriter(Console.Out));
@@ -110,9 +111,15 @@ class Program
         app.MapConfigRoutes();
         app.MapSseRoutes();
 
-        // Roda a aplicação
+        // Roda a aplicação web em segundo plano
         Console.WriteLine("[*] Servidor web iniciado na porta 8634...");
-        app.Run();
+        app.Start();
+
+        // Inicializa o Painel de Controle Gráfico Nativo
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+        System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.SystemAware);
+        System.Windows.Forms.Application.Run(new PainelControleForm(app));
 
         // Cleanup
         NdiScanner.Parar();

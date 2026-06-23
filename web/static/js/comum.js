@@ -19,12 +19,28 @@ function carregarFontes() {
 
         if (dados.length === 0) {
             if (isDock) {
-                painel.innerHTML = `<div class="empty-state">Buscando fontes NDI...</div>`;
+                painel.innerHTML = `
+                    <div class="empty-state">
+                        <div class="radar-container">
+                            <div class="radar-circle"></div>
+                            <div class="radar-pulse"></div>
+                        </div>
+                        <div class="empty-text">Buscando fontes NDI...</div>
+                    </div>`;
             } else {
                 painel.innerHTML = `
                     <div class="empty-state">
-                        <p>Nenhuma fonte NDI encontrada na rede local...</p>
-                        <p style="font-size:0.85rem;margin-top:8px;">Certifique-se de que os feeds NDI estão transmitindo na mesma subrede.</p>
+                        <div class="radar-container">
+                            <div class="radar-circle"></div>
+                            <div class="radar-pulse"></div>
+                            <div class="radar-pulse delay-1"></div>
+                            <div class="radar-pulse delay-2"></div>
+                        </div>
+                        <h3>Nenhuma fonte NDI encontrada</h3>
+                        <p>Aguardando feeds NDI estarem ativos e transmitindo na mesma subrede local...</p>
+                        <div class="status-scanning">
+                            <span class="scan-dot"></span> Escaneando rede local em tempo real
+                        </div>
                     </div>`;
             }
             return;

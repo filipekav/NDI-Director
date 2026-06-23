@@ -48,52 +48,69 @@ public static class NvidiaGpuMonitor
     [DllImport("nvml.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern int nvmlDeviceGetMemoryInfo(IntPtr device, out nvmlMemory_t memory);
 
-    private static void Inicializar()
+    private static readonly object LockInit = new object();
+    private static bool _inicializando = false;
+
+    private static void InicializarAssincrono()
     {
-        if (_nvmlInicializado || _nvmlIndisponivel) return;
-
-        try
+        lock (LockInit)
         {
-            // Tenta pré-carregar a DLL para máxima compatibilidade com diferentes caminhos do driver
-            IntPtr libHandle = LoadLibrary("nvml.dll");
-            if (libHandle == IntPtr.Zero)
+            if (_nvmlInicializado || _nvmlIndisponivel || _inicializando) return;
+            _inicializando = true;
+        }
+
+        Task.Run(() =>
+        {
+            try
             {
-                string nvsmiPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "NVSMI", "nvml.dll");
-                if (File.Exists(nvsmiPath))
+                // Tenta pré-carregar a DLL para máxima compatibilidade com diferentes caminhos do driver
+                IntPtr libHandle = LoadLibrary("nvml.dll");
+                if (libHandle == IntPtr.Zero)
                 {
-                    LoadLibrary(nvsmiPath);
+                    string nvsmiPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "NVSMI", "nvml.dll");
+                    if (File.Exists(nvsmiPath))
+                    {
+                        LoadLibrary(nvsmiPath);
+                    }
+                }
+
+                int ret = nvmlInit();
+                if (ret == 0) // NVML_SUCCESS
+                {
+                    ret = nvmlDeviceGetHandleByIndex_v2(0, out _deviceHandle);
+                    if (ret == 0)
+                    {
+                        _nvmlInicializado = true;
+                        Console.WriteLine("[*] NVML de monitoramento da GPU NVIDIA inicializado com sucesso.");
+                        return;
+                    }
+                }
+                
+                _nvmlIndisponivel = true;
+            }
+            catch (DllNotFoundException)
+            {
+                _nvmlIndisponivel = true;
+                Console.WriteLine("[!] NVML (nvml.dll) não encontrada. Monitoramento da GPU NVIDIA desabilitado.");
+            }
+            catch (Exception ex)
+            {
+                _nvmlIndisponivel = true;
+                Console.WriteLine($"[!] Erro ao inicializar NVML: {ex.Message}. Monitoramento NVIDIA desabilitado.");
+            }
+            finally
+            {
+                lock (LockInit)
+                {
+                    _inicializando = false;
                 }
             }
-
-            int ret = nvmlInit();
-            if (ret == 0) // NVML_SUCCESS
-            {
-                ret = nvmlDeviceGetHandleByIndex_v2(0, out _deviceHandle);
-                if (ret == 0)
-                {
-                    _nvmlInicializado = true;
-                    Console.WriteLine("[*] NVML de monitoramento da GPU NVIDIA inicializado com sucesso.");
-                    return;
-                }
-            }
-            
-            _nvmlIndisponivel = true;
-        }
-        catch (DllNotFoundException)
-        {
-            _nvmlIndisponivel = true;
-            Console.WriteLine("[!] NVML (nvml.dll) não encontrada. Monitoramento da GPU NVIDIA desabilitado.");
-        }
-        catch (Exception ex)
-        {
-            _nvmlIndisponivel = true;
-            Console.WriteLine($"[!] Erro ao inicializar NVML: {ex.Message}. Monitoramento NVIDIA desabilitado.");
-        }
+        });
     }
 
     public static (uint? encoderLoad, uint? encoderSessions, uint? gpuLoad, ulong? vramUsed, ulong? vramTotal) ObterMetricas()
     {
-        Inicializar();
+        InicializarAssincrono();
 
         if (!_nvmlInicializado)
         {
