@@ -13,5 +13,6 @@
   "CanvasAlturaVertical": 850,
   "LimiteSessoesNvenc": 8,
   "ApelidosFontes": {},
-  "VolumesFontes": {}
+  "VolumesFontes": {},
+  "MotorVideo": "gpu"
 }

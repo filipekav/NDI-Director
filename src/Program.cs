@@ -20,7 +20,19 @@ class Program
         }
 
         NdiScanner.Iniciar();
-        VideoEngine.Iniciar();
+
+        // Seleciona o motor de composição de vídeo com base na configuração
+        if (AppConfig.MotorVideo == "gpu")
+        {
+            Console.WriteLine("[*] Motor de vídeo selecionado: GPU (DirectX 11 + Direct2D)");
+            VideoEngineGpu.Iniciar();
+        }
+        else
+        {
+            Console.WriteLine("[*] Motor de vídeo selecionado: CPU (OpenCV + GDI+)");
+            VideoEngine.Iniciar();
+        }
+
         AppConfig.MixerGlobal.Iniciar();
         SseManager.IniciarEnvioVu();
         SseManager.IniciarEnvioMetrics();
@@ -123,7 +135,16 @@ class Program
 
         // Cleanup
         NdiScanner.Parar();
-        VideoEngine.Parar();
+
+        if (AppConfig.MotorVideo == "gpu")
+        {
+            VideoEngineGpu.Parar();
+        }
+        else
+        {
+            VideoEngine.Parar();
+        }
+
         AppConfig.MixerGlobal.Parar();
         SseManager.PararEnvioVu();
         

@@ -24,7 +24,8 @@ public static class ConfigRoutes
                 canvasAlturaHorizontal = AppConfig.CanvasAlturaHorizontal,
                 canvasLarguraVertical = AppConfig.CanvasLarguraVertical,
                 canvasAlturaVertical = AppConfig.CanvasAlturaVertical,
-                limiteSessoesNvenc = AppConfig.LimiteSessoesNvenc
+                limiteSessoesNvenc = AppConfig.LimiteSessoesNvenc,
+                motorVideo = AppConfig.MotorVideo
             });
         });
 
@@ -209,6 +210,21 @@ public static class ConfigRoutes
                 return Results.Json(new { status = "ok", qualidade = qualidade });
             }
             return Results.BadRequest(new { status = "error", message = "Qualidade invalida. Escolha 'alta', 'media' ou 'baixa'." });
+        });
+
+        // API: Definir motor de vídeo (cpu / gpu)
+        app.MapPost("/api/configuracoes/definir_motor_video/{valor}", (string valor) =>
+        {
+            if (valor == "cpu" || valor == "gpu")
+            {
+                AppConfig.MotorVideo = valor;
+                Console.WriteLine($"[*] Motor de vídeo alterado para: {valor.ToUpper()}");
+                AppConfig.SalvarConfiguracoes();
+                SseManager.NotificarClientes();
+                SseManager.LogAtividade($"Motor de composição alterado para '{(valor == "gpu" ? "GPU (DirectX)" : "CPU (OpenCV)")}'. Reinicie para aplicar.", "aviso");
+                return Results.Json(new { status = "ok", motorVideo = valor });
+            }
+            return Results.BadRequest(new { status = "error", message = "Motor inválido. Escolha 'cpu' ou 'gpu'." });
         });
     }
 }

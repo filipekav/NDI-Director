@@ -22,6 +22,7 @@ public static class AppConfig
     public static bool MosaicoVertical = false;
     public static int PaddingMosaico = 20;
     public static int LimiteSessoesNvenc = 8;
+    public static string MotorVideo = "cpu"; // "cpu" (OpenCV+GDI+) ou "gpu" (DirectX 11+Direct2D)
     public static int CanvasLarguraHorizontal = 1920;
     public static int CanvasAlturaHorizontal = 850;
     public static int CanvasLarguraVertical = 550;
@@ -76,7 +77,8 @@ public static class AppConfig
                     CanvasAlturaVertical = CanvasAlturaVertical,
                     LimiteSessoesNvenc = LimiteSessoesNvenc,
                     ApelidosFontes = new Dictionary<string, string>(ApelidosFontes),
-                    VolumesFontes = new Dictionary<string, float>(VolumesFontes)
+                    VolumesFontes = new Dictionary<string, float>(VolumesFontes),
+                    MotorVideo = MotorVideo
                 };
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
@@ -123,6 +125,7 @@ public static class AppConfig
                 CanvasLarguraVertical = data.CanvasLarguraVertical;
                 CanvasAlturaVertical = data.CanvasAlturaVertical;
                 LimiteSessoesNvenc = data.LimiteSessoesNvenc > 0 ? data.LimiteSessoesNvenc : 8;
+                MotorVideo = (data.MotorVideo == "gpu") ? "gpu" : "cpu";
 
                 ApelidosFontes.Clear();
                 if (data.ApelidosFontes != null)

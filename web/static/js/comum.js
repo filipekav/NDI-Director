@@ -319,9 +319,14 @@ function carregarConfiguracoes() {
     .then(res => res.json())
     .then(dados => {
         // Atualiza seletor de áudio
-        document.querySelectorAll('.btn-format').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#btn-audio-pcm, #btn-audio-aac').forEach(btn => btn.classList.remove('active'));
         const btnAudio = document.getElementById('btn-audio-' + dados.formatoAudio);
         if (btnAudio) btnAudio.classList.add('active');
+
+        // Atualiza seletor de motor de vídeo
+        document.querySelectorAll('#btn-motor-cpu, #btn-motor-gpu').forEach(btn => btn.classList.remove('active'));
+        const btnMotor = document.getElementById('btn-motor-' + dados.motorVideo);
+        if (btnMotor) btnMotor.classList.add('active');
 
         // Atualiza seletor de fundo do mosaico
         document.querySelectorAll('.btn-color-modal').forEach(btn => btn.classList.remove('active'));
@@ -395,8 +400,18 @@ function definirFormatoAudio(formato) {
     fetch('/api/configuracoes/definir_audio/' + formato, { method: 'POST' })
     .then(res => {
         if (!res.ok) return res.json().then(e => alert(e.message));
-        document.querySelectorAll('.btn-format').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#btn-audio-pcm, #btn-audio-aac').forEach(btn => btn.classList.remove('active'));
         const btn = document.getElementById('btn-audio-' + formato);
+        if (btn) btn.classList.add('active');
+    });
+}
+
+function definirMotorVideo(motor) {
+    fetch('/api/configuracoes/definir_motor_video/' + motor, { method: 'POST' })
+    .then(res => {
+        if (!res.ok) return res.json().then(e => alert(e.message));
+        document.querySelectorAll('#btn-motor-cpu, #btn-motor-gpu').forEach(btn => btn.classList.remove('active'));
+        const btn = document.getElementById('btn-motor-' + motor);
         if (btn) btn.classList.add('active');
     });
 }
@@ -737,6 +752,12 @@ function conectarSSE() {
             if (ramVal) ramVal.textContent = metrics.ram.toFixed(0) + ' MB';
             if (fpsMosaicoVal) fpsMosaicoVal.textContent = metrics.fpsMosaico.toFixed(1);
             if (fpsVerticalVal) fpsVerticalVal.textContent = metrics.fpsVertical.toFixed(1);
+
+            const motorVal = document.getElementById('metric-motor');
+            if (motorVal && metrics.motorVideo) {
+                motorVal.textContent = metrics.motorVideo.toUpperCase();
+                motorVal.style.color = metrics.motorVideo === 'gpu' ? '#34d399' : '#818cf8';
+            }
 
             // Atualiza métricas da GPU NVIDIA se disponíveis
             const gpuGroup = document.getElementById('metrics-gpu-group');

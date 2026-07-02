@@ -15,4 +15,5 @@ public class ConfigData
     public int LimiteSessoesNvenc { get; set; } = 8;
     public Dictionary<string, string> ApelidosFontes { get; set; } = new();
     public Dictionary<string, float> VolumesFontes { get; set; } = new();
+    public string MotorVideo { get; set; } = "cpu"; // "cpu" (OpenCV+GDI+) ou "gpu" (DirectX 11+Direct2D)
 }

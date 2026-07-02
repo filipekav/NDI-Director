@@ -186,9 +186,23 @@ public static class SseManager
                     long bytesRam = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
                     double ramMb = Math.Round(bytesRam / 1024.0 / 1024.0, 1);
 
-                    // FPS do Mosaico Principal e Mosaico Vertical
-                    double fpsMosaico = VideoEngine.ObterFpsMosaico();
-                    double fpsVertical = VideoEngine.ObterFpsVertical();
+                    // FPS do Mosaico Principal e Mosaico Vertical (lê do motor ativo)
+                    double fpsMosaico;
+                    double fpsVertical;
+                    string motorVideoAtivo;
+
+                    if (AppConfig.MotorVideo == "gpu" && !VideoEngineGpu.EmFallbackCpu)
+                    {
+                        fpsMosaico = VideoEngineGpu.ObterFpsMosaico();
+                        fpsVertical = VideoEngineGpu.ObterFpsVertical();
+                        motorVideoAtivo = "gpu";
+                    }
+                    else
+                    {
+                        fpsMosaico = VideoEngine.ObterFpsMosaico();
+                        fpsVertical = VideoEngine.ObterFpsVertical();
+                        motorVideoAtivo = "cpu";
+                    }
 
                     // Coleta de estatísticas individuais dos receptores ativos
                     var listaFontes = new List<object>();
@@ -219,7 +233,8 @@ public static class SseManager
                         nvencLimit = AppConfig.LimiteSessoesNvenc,
                         gpuLoad = gpuLoad,
                         vramUsed = vramUsed,
-                        vramTotal = vramTotal
+                        vramTotal = vramTotal,
+                        motorVideo = motorVideoAtivo
                     };
 
                     string payload = JsonSerializer.Serialize(metrics);
