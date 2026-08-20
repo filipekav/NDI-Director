@@ -394,7 +394,6 @@ public static class FontesRoutes
                 }
             }
 
-            bool receptorTemporario = false;
             if (rec == null)
             {
                 lock (AppConfig.LockFontes)
@@ -407,40 +406,26 @@ public static class FontesRoutes
 
                 try
                 {
-                    Console.WriteLine($"[*] Criando receptor temporário para obter 1 frame de preview: '{nome}'");
-                    rec = new ReceptorNDI(nome, lowBandwidth: true);
-                    receptorTemporario = true;
+                    rec = new ReceptorNDI(nome);
+                    AppConfig.ReceptoresPreview[nome] = rec;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[!] Erro ao criar receptor temporário para preview: {ex.Message}");
+                    Console.WriteLine($"[!] Erro ao criar receptor de preview para '{nome}': {ex.Message}");
                     return Results.NoContent();
                 }
             }
 
             Mat? frame = rec.ObterFrame();
 
-            // Se o primeiro frame ainda não chegou, aguarda até 2000ms (temporário) ou 500ms (ativo)
+            // Se o primeiro frame ainda não chegou, aguarda brevemente
             if (frame == null)
             {
-                int tentativas = receptorTemporario ? 20 : 5;
+                int tentativas = 12;
                 while (tentativas-- > 0 && frame == null)
                 {
-                    Thread.Sleep(100);
+                    Thread.Sleep(50);
                     frame = rec.ObterFrame();
-                }
-            }
-
-            if (receptorTemporario && rec != null)
-            {
-                try
-                {
-                    rec.Parar();
-                    Console.WriteLine($"[*] Receptor temporário para preview finalizado: '{nome}'");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[!] Erro ao fechar receptor temporário: {ex.Message}");
                 }
             }
 

@@ -59,7 +59,7 @@ public class ReceptorNDI
         {
             source_to_connect_to = source,
             color_format = NDIlib.recv_color_format_e.recv_color_format_BGRX_BGRA,
-            bandwidth = LowBandwidth ? NDIlib.recv_bandwidth_e.recv_bandwidth_lowest : NDIlib.recv_bandwidth_e.recv_bandwidth_highest,
+            bandwidth = NDIlib.recv_bandwidth_e.recv_bandwidth_highest,
             allow_video_fields = false
         };
 

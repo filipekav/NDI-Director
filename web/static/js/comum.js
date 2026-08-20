@@ -3,15 +3,6 @@ const ultimosVolumes = {};
 let livePreviewAtivo = true;
 
 function carregarFontes() {
-    const activeEl = document.activeElement;
-    let focadoId = null, cursorStart = 0, cursorEnd = 0;
-
-    if (activeEl && activeEl.classList.contains('input-name')) {
-        focadoId   = activeEl.id;
-        cursorStart = activeEl.selectionStart;
-        cursorEnd   = activeEl.selectionEnd;
-    }
-
     fetch('/api/fontes')
     .then(res => res.json())
     .then(dados => {
@@ -49,10 +40,28 @@ function carregarFontes() {
         const emptyState = painel.querySelector('.empty-state');
         if (emptyState) emptyState.remove();
 
-        dados.sort((a, b) => a.nome.localeCompare(b.nome));
+        // 1. FLIP Animation: Captura as posições geométricas dos cards antes da reordenação
+        const posicoesAnteriores = new Map();
+        painel.querySelectorAll('.feed-card').forEach(card => {
+            posicoesAnteriores.set(card.id, card.getBoundingClientRect());
+        });
+
+        dados.sort((a, b) => {
+            // 1. Feeds ativos na cena vêm primeiro
+            if (a.ativo && !b.ativo) return -1;
+            if (!a.ativo && b.ativo) return 1;
+
+            // 2. Se ambos estão ativos, ordena rigorosamente pela posição no mosaico (Posição 1, 2, 3, 4)
+            if (a.ativo && b.ativo) {
+                return (a.posicao ?? 999) - (b.posicao ?? 999);
+            }
+
+            // 3. Se ambos estão inativos, ordena em ordem alfabética por nome
+            return a.nome.localeCompare(b.nome);
+        });
         const idsAtuais = new Set();
 
-        dados.forEach(fonte => {
+        dados.forEach((fonte, fonteIdx) => {
             const cardId = 'card-' + fonte.nome.replace(/[^a-zA-Z0-9]/g, '_');
             idsAtuais.add(cardId);
 
@@ -62,14 +71,16 @@ function carregarFontes() {
                 card.id = cardId;
                 card.innerHTML = `
                     <div class="status-badge"><span class="status-dot"></span><span class="status-text"></span></div>
-                    <div class="order-badge" style="display:none;"></div>
                     <div class="feed-title">${fonte.nome}</div>
                     <div class="dynamic-content"></div>
                     <div class="btn-group"></div>`;
-                painel.appendChild(card);
             }
 
-            card.className = `feed-card ${fonte.ativo ? 'active' : ''} ${fonte.highlight ? 'highlighted' : ''} ${fonte.solo ? 'solo' : ''} ${fonte.erro ? 'erro' : ''}`;
+            card.className = `feed-card ${fonte.ativo ? 'active' : ''} ${fonte.highlight ? 'highlighted' : ''} ${fonte.solo ? 'solo' : ''} ${fonte.erro ? 'erro' : ''} ${fonte.gravando ? 'gravando' : ''}`;
+
+            // Remove order-badge legado caso exista no DOM
+            const oldOrderBadge = card.querySelector('.order-badge');
+            if (oldOrderBadge) oldOrderBadge.remove();
 
             // Garante que o ícone de status de rede esteja presente no card
             let netIcon = card.querySelector('.net-status-icon');
@@ -97,14 +108,6 @@ function carregarFontes() {
             }
             card.querySelector('.status-text').textContent = statusText;
 
-            const orderBadge = card.querySelector('.order-badge');
-            if (fonte.ativo) {
-                orderBadge.textContent    = fonte.posicao + 1;
-                orderBadge.style.display  = 'flex';
-            } else {
-                orderBadge.style.display  = 'none';
-            }
-
             const dynamicContent = card.querySelector('.dynamic-content');
             const inputId = `input-name-${cardId}`;
 
@@ -116,11 +119,11 @@ function carregarFontes() {
                 
                 dynamicContent.innerHTML = `
                     <div class="preview-wrapper">
-                        <div class="recording-timer-badge ${fonte.gravando ? '' : 'oculto'}" data-desde="${fonte.gravando_desde || ''}">00:00</div>
-                        <img class="feed-preview"
+                        <div class="recording-timer-badge ${fonte.gravando ? '' : 'oculto'}" data-desde="${fonte.gravando_desde || ''}">REC 00:00</div>
+                        <img class="feed-preview oculto"
                              src="/api/preview/${encodeURIComponent(fonte.nome)}?t=${Date.now()}"
                              alt="Preview"
-                             onerror="this.classList.add('oculto')" />
+                             onload="this.classList.remove('oculto')" />
                         <button class="btn-refresh-preview" onclick="refreshPreview(this,'${fonte.nome}')" title="Atualizar preview">🔄</button>
                     </div>
                     <div class="name-editor">
@@ -128,12 +131,11 @@ function carregarFontes() {
                         <div class="name-editor-row">
                             <input type="text" class="input-name" placeholder="${gcPlaceholder}"
                                  value="${fonte.apelido || ''}" id="${inputId}"
-                                 onblur="autoSalvarApelido(this, '${fonte.nome}')"
                                  onkeydown="if(event.key==='Enter'){event.preventDefault();salvarApelido(this.parentElement.querySelector('.btn-save-name'),'${fonte.nome}','${inputId}');}" />
                             <button class="btn-save-name" onclick="salvarApelido(this,'${fonte.nome}','${inputId}')">Salvar</button>
                         </div>
                     </div>`;
-            } else if (inputId !== focadoId) {
+            } else if (document.activeElement !== inputEl) {
                 inputEl.value = fonte.apelido || '';
             }
 
@@ -147,7 +149,7 @@ function carregarFontes() {
                 } else {
                     timerBadge.classList.add('oculto');
                     timerBadge.removeAttribute('data-desde');
-                    timerBadge.textContent = '00:00';
+                    timerBadge.textContent = 'REC 00:00';
                 }
             }
 
@@ -199,7 +201,7 @@ function carregarFontes() {
                         <div class="vu-meter-mask" id="vu-mask-${cardId}" style="width: 100%;"></div>
                     </div>
                     <div style="display: flex; align-items: center; gap: ${isDock ? 8 : 10}px;">
-                        <button class="btn-mute" id="btn-mute-${cardId}" onclick="toggleMute('${fonte.nome}', '${cardId}')" title="Mute/Unmute">
+                        <button class="btn-mute" id="btn-mute-${cardId}" onclick="toggleMute('${fonte.nome}', '${cardId}')" title="Mute/Unmute Rápido">
                             ${fonte.volume === 0 ? '🔇' : '🔊'}
                         </button>
                         <input type="range" min="0" max="150" value="${fonte.volume}" class="volume-slider" id="slider-${cardId}" oninput="atualizarVolumeVisual('${fonte.nome}', this.value, '${cardId}')" onchange="alterarVolume('${fonte.nome}', this.value, '${cardId}')" ondblclick="restaurarVolumePadrao('${fonte.nome}', '${cardId}')" title="Duplo clique para redefinir para 100%" />
@@ -238,6 +240,23 @@ function carregarFontes() {
                 `;
             }
 
+            // Constrói botões de posição com indicação de Smart Swap
+            let posButtonsHtml = '';
+            for (let p = 0; p < 4; p++) {
+                const isActivePos = (fonte.posicao === p);
+                const outroDono = dados.find(d => d.ativo && d.posicao === p && d.nome !== fonte.nome);
+                let titlePos = `Posição ${p + 1}`;
+                if (isActivePos) {
+                    titlePos = `Posição atual (${p + 1})`;
+                } else if (outroDono) {
+                    const nomeOutro = outroDono.apelido || outroDono.nome;
+                    titlePos = `Trocar com ${nomeOutro} (Posição ${p + 1})`;
+                } else {
+                    titlePos = `Mover para a Posição ${p + 1}`;
+                }
+                posButtonsHtml += `<button class="btn-pos ${isActivePos ? 'active' : ''}" onclick="mudarPosicao('${fonte.nome}',${p})" title="${titlePos}">${p + 1}</button>`;
+            }
+
             const btnsHtml = `
                 ${botoesLayoutHtml}
                 ${gravarHtml}
@@ -245,10 +264,7 @@ function carregarFontes() {
                 <div class="pos-selector">
                     <span>Posição${isDock ? '' : ' no'} Mosaico:</span>
                     <div class="pos-buttons">
-                        <button class="btn-pos ${fonte.posicao===0?'active':''}" onclick="mudarPosicao('${fonte.nome}',0)">1</button>
-                        <button class="btn-pos ${fonte.posicao===1?'active':''}" onclick="mudarPosicao('${fonte.nome}',1)">2</button>
-                        <button class="btn-pos ${fonte.posicao===2?'active':''}" onclick="mudarPosicao('${fonte.nome}',2)">3</button>
-                        <button class="btn-pos ${fonte.posicao===3?'active':''}" onclick="mudarPosicao('${fonte.nome}',3)">4</button>
+                        ${posButtonsHtml}
                     </div>
                 </div>
                 ${fonte.ativo ? `
@@ -262,15 +278,45 @@ function carregarFontes() {
                 `}`;
 
             if (btnGroup.innerHTML !== btnsHtml) btnGroup.innerHTML = btnsHtml;
+
+            // Insere o elemento apenas se sua posição real no DOM tiver mudado (evita desconectar foco/cursor)
+            if (painel.children[fonteIdx] !== card) {
+                painel.insertBefore(card, painel.children[fonteIdx] || null);
+            }
         });
 
         painel.querySelectorAll('.feed-card').forEach(card => {
             if (!idsAtuais.has(card.id)) card.remove();
         });
 
-        if (focadoId) {
-            const el = document.getElementById(focadoId);
-            if (el) { el.focus(); el.setSelectionRange(cursorStart, cursorEnd); }
+        // 2. FLIP Animation: Executa animação apenas se o usuário NÃO estiver digitando em um input
+        const isEditingText = document.activeElement && document.activeElement.tagName === 'INPUT';
+        if (posicoesAnteriores.size > 0 && !isEditingText) {
+            painel.querySelectorAll('.feed-card').forEach(card => {
+                const rectAnt = posicoesAnteriores.get(card.id);
+                if (rectAnt) {
+                    const rectNovo = card.getBoundingClientRect();
+                    const deltaX = rectAnt.left - rectNovo.left;
+                    const deltaY = rectAnt.top - rectNovo.top;
+
+                    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+                        // Invert: Aplica translação inversa instantânea
+                        card.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                        card.style.transition = 'none';
+                        card.style.zIndex = '5';
+
+                        // Play: Dispara transição suave na próxima frame
+                        requestAnimationFrame(() => {
+                            card.style.transition = 'transform 0.42s cubic-bezier(0.25, 1, 0.5, 1)';
+                            card.style.transform = '';
+                            setTimeout(() => {
+                                card.style.transition = '';
+                                card.style.zIndex = '';
+                            }, 420);
+                        });
+                    }
+                }
+            });
         }
     });
 }
@@ -727,13 +773,52 @@ function mudarPosicao(nome, novaPos) {
     document.querySelectorAll('.feed-card').forEach(card => {
         if (card.querySelector('.feed-title').textContent === nome) {
             card.querySelectorAll('.btn-pos').forEach((b, i) => b.classList.toggle('active', i === novaPos));
-            const badge = card.querySelector('.order-badge');
-            if (badge) badge.textContent = novaPos + 1;
         }
     });
     fetch('/api/posicao/' + encodeURIComponent(nome) + '/' + novaPos, { method: 'POST' })
     .then(res => { if (!res.ok) return res.json().then(e => { alert(e.message); carregarFontes(); }); })
     .catch(() => carregarFontes());
+}
+
+function atualizarVolumeVisual(nome, valor, cardId) {
+    const valEl = document.getElementById(`vol-value-${cardId}`);
+    if (valEl) valEl.textContent = `${valor}%`;
+    const btnMute = document.getElementById(`btn-mute-${cardId}`);
+    if (btnMute) btnMute.textContent = parseInt(valor) === 0 ? '🔇' : '🔊';
+    const vuContainer = document.querySelector(`#${cardId} .vu-meter-container`);
+    if (vuContainer) {
+        if (parseInt(valor) === 0) vuContainer.classList.add('muted');
+        else vuContainer.classList.remove('muted');
+    }
+}
+
+function alterarVolume(nome, valor, cardId) {
+    atualizarVolumeVisual(nome, valor, cardId);
+    fetch('/api/audio/volume/' + encodeURIComponent(nome) + '/' + valor, { method: 'POST' })
+    .catch(err => console.error("Erro ao alterar volume:", err));
+}
+
+function toggleMute(nome, cardId) {
+    const slider = document.getElementById(`slider-${cardId}`);
+    if (!slider) return;
+    const volAtual = parseInt(slider.value) || 0;
+    if (volAtual > 0) {
+        slider.dataset.prevVol = volAtual;
+        slider.value = 0;
+        alterarVolume(nome, 0, cardId);
+    } else {
+        const restaurar = parseInt(slider.dataset.prevVol) || 100;
+        slider.value = restaurar;
+        alterarVolume(nome, restaurar, cardId);
+    }
+}
+
+function restaurarVolumePadrao(nome, cardId) {
+    const slider = document.getElementById(`slider-${cardId}`);
+    if (slider) {
+        slider.value = 100;
+        alterarVolume(nome, 100, cardId);
+    }
 }
 
 function salvarApelido(btn, nome, inputId) {
@@ -1006,9 +1091,9 @@ window.onload = function() {
                 if (!isNaN(epochDesde) && epochDesde > 0) {
                     const decorrido = Math.floor(Date.now() / 1000 - epochDesde);
                     if (decorrido >= 0) {
-                        badge.textContent = formatarTempo(decorrido);
+                        badge.textContent = "REC " + formatarTempo(decorrido);
                     } else {
-                        badge.textContent = "00:00";
+                        badge.textContent = "REC 00:00";
                     }
                 }
             }
@@ -1023,15 +1108,43 @@ window.onload = function() {
     carregarConfiguracoes();
 };
 
+function refreshPreview(btn, nome) {
+    if (btn) {
+        btn.style.transform = 'rotate(360deg)';
+        btn.style.transition = 'transform 0.4s ease';
+        setTimeout(() => { btn.style.transform = ''; btn.style.transition = ''; }, 400);
+    }
+    const cardId = 'card-' + nome.replace(/[^a-zA-Z0-9]/g, '_');
+    const card = document.getElementById(cardId);
+    if (card) {
+        const img = card.querySelector('.feed-preview');
+        if (img) {
+            const targetSrc = '/api/preview/' + encodeURIComponent(nome) + '?t=' + Date.now();
+            const preloader = new Image();
+            preloader.onload = () => {
+                img.src = targetSrc;
+                img.classList.remove('oculto');
+            };
+            preloader.src = targetSrc;
+        }
+    }
+}
+
 function atualizarPreviewsAutomatico() {
     if (!livePreviewAtivo) return;
     document.querySelectorAll('.feed-card').forEach(card => {
         const img = card.querySelector('.feed-preview');
-        if (img && !img.classList.contains('oculto')) {
+        if (img) {
             const titleEl = card.querySelector('.feed-title');
             if (titleEl && !card.classList.contains('erro')) {
                 const nomeFonte = titleEl.textContent;
-                img.src = '/api/preview/' + encodeURIComponent(nomeFonte) + '?t=' + Date.now();
+                const targetSrc = '/api/preview/' + encodeURIComponent(nomeFonte) + '?t=' + Date.now();
+                const preloader = new Image();
+                preloader.onload = () => {
+                    img.src = targetSrc;
+                    img.classList.remove('oculto');
+                };
+                preloader.src = targetSrc;
             }
         }
     });
