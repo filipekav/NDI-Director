@@ -465,6 +465,33 @@ function definirMotorVideo(motor) {
     });
 }
 
+function reiniciarMotorVideoAtual() {
+    const btn = document.getElementById('btn-reiniciar-motor');
+    const orig = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Reiniciando motor...';
+    }
+    fetch('/api/configuracoes/reiniciar_motor_video', { method: 'POST' })
+    .then(res => {
+        if (!res.ok) return res.json().then(e => alert(e.message));
+        setTimeout(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '✅ Motor reiniciado!';
+                setTimeout(() => { btn.innerHTML = orig; }, 1500);
+            }
+        }, 800);
+    })
+    .catch(err => {
+        console.error("Erro ao reiniciar motor:", err);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    });
+}
+
 function definirQualidadeGravacao(qualidade) {
     fetch('/api/configuracoes/definir_qualidade/' + qualidade, { method: 'POST' })
     .then(res => {

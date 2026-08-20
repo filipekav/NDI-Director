@@ -216,19 +216,22 @@ public static class ConfigRoutes
             return Results.BadRequest(new { status = "error", message = "Qualidade invalida. Escolha 'alta', 'media' ou 'baixa'." });
         });
 
-        // API: Definir motor de vídeo (cpu / gpu)
+        // API: Definir motor de vídeo (cpu / gpu) com troca a quente imediata
         app.MapPost("/api/configuracoes/definir_motor_video/{valor}", (string valor) =>
         {
             if (valor == "cpu" || valor == "gpu")
             {
-                AppConfig.MotorVideo = valor;
-                Console.WriteLine($"[*] Motor de vídeo alterado para: {valor.ToUpper()}");
-                AppConfig.SalvarConfiguracoes();
-                SseManager.NotificarClientes();
-                SseManager.LogAtividade($"Motor de composição alterado para '{(valor == "gpu" ? "GPU (DirectX)" : "CPU (OpenCV)")}'. Reinicie para aplicar.", "aviso");
+                Task.Run(() => VideoEngineManager.ReiniciarMotor(valor));
                 return Results.Json(new { status = "ok", motorVideo = valor });
             }
             return Results.BadRequest(new { status = "error", message = "Motor inválido. Escolha 'cpu' ou 'gpu'." });
+        });
+
+        // API: Reiniciar motor de vídeo atual
+        app.MapPost("/api/configuracoes/reiniciar_motor_video", () =>
+        {
+            Task.Run(() => VideoEngineManager.ReiniciarMotor());
+            return Results.Json(new { status = "ok", motorVideo = AppConfig.MotorVideo });
         });
 
         // API: Definir Lip-Sync (auto e offset manual)

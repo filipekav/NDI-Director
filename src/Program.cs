@@ -21,17 +21,8 @@ class Program
 
         NdiScanner.Iniciar();
 
-        // Seleciona o motor de composição de vídeo com base na configuração
-        if (AppConfig.MotorVideo == "gpu")
-        {
-            Console.WriteLine("[*] Motor de vídeo selecionado: GPU (DirectX 11 + Direct2D)");
-            VideoEngineGpu.Iniciar();
-        }
-        else
-        {
-            Console.WriteLine("[*] Motor de vídeo selecionado: CPU (OpenCV + GDI+)");
-            VideoEngine.Iniciar();
-        }
+        // Inicializa o motor de composição de vídeo (GPU DirectX 11 ou CPU OpenCV)
+        VideoEngineManager.IniciarMotorConfigurado();
 
         AppConfig.MixerGlobal.Iniciar();
         SseManager.IniciarEnvioVu();

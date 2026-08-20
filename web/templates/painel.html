@@ -94,17 +94,20 @@
                 <!-- Seção 0: Motor de Composição de Vídeo (CPU/GPU) -->
                 <div class="config-section">
                     <span class="config-label">⚡ Motor de Composição de Vídeo:</span>
-                    <p class="config-desc">Selecione o motor de composição. O modo GPU (DirectX 11 + Direct2D) reduz drasticamente o uso de CPU e melhora a taxa de quadros. <strong style="color: #f59e0b;">Requer reiniciar o aplicativo para aplicar.</strong></p>
+                    <p class="config-desc">Selecione o motor de composição. O modo GPU (DirectX 11 + Direct2D) reduz o uso de CPU e acelera o mosaico. A troca é realizada em tempo real.</p>
                     <div class="audio-format-selector">
                         <button id="btn-motor-cpu" class="btn-format" onclick="definirMotorVideo('cpu')">
                             <span class="format-check">✔</span>
-                            CPU <span class="format-badge lighter">OpenCV + GDI+ (Padrão)</span>
+                            CPU <span class="format-badge lighter">OpenCV + GDI+</span>
                         </button>
                         <button id="btn-motor-gpu" class="btn-format" onclick="definirMotorVideo('gpu')">
                             <span class="format-check">✔</span>
                             GPU <span class="format-badge">DirectX 11 (Acelerado)</span>
                         </button>
                     </div>
+                    <button id="btn-reiniciar-motor" class="btn-format" style="margin-top: 10px; width: 100%; border-color: rgba(99, 102, 241, 0.4); justify-content: center;" onclick="reiniciarMotorVideoAtual()">
+                        🔄 Reiniciar Motor de Vídeo Agora
+                    </button>
                 </div>
 
                 <!-- Seção 1: Formato de Áudio -->

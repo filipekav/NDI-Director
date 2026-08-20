@@ -211,19 +211,27 @@ public class PainelControleForm : Form
         painelLateral.Controls.Add(_lblFontesAtivas);
 
         // Grupo: Botões de Ação
-        var btnPainelWeb = CriarBotaoCustom("🖥️  Abrir Painel Web", Color.FromArgb(79, 70, 229), new Point(15, 360));
+        var btnAlternarMotor = CriarBotaoCustom("⚡ Alternar Motor (GPU/CPU)", Color.FromArgb(49, 46, 129), new Point(15, 350));
+        btnAlternarMotor.Click += (s, e) =>
+        {
+            string proximo = AppConfig.MotorVideo == "gpu" ? "cpu" : "gpu";
+            Task.Run(() => VideoEngineManager.ReiniciarMotor(proximo));
+        };
+        painelLateral.Controls.Add(btnAlternarMotor);
+
+        var btnPainelWeb = CriarBotaoCustom("🖥️  Abrir Painel Web", Color.FromArgb(79, 70, 229), new Point(15, 395));
         btnPainelWeb.Click += (s, e) => AbrirLinkWeb("http://localhost:8634");
         painelLateral.Controls.Add(btnPainelWeb);
 
-        var btnObsDock = CriarBotaoCustom("⚓  Abrir Dock do OBS", Color.FromArgb(30, 35, 48), new Point(15, 410));
+        var btnObsDock = CriarBotaoCustom("⚓  Abrir Dock do OBS", Color.FromArgb(30, 35, 48), new Point(15, 440));
         btnObsDock.Click += (s, e) => AbrirLinkWeb("http://localhost:8634/dock");
         painelLateral.Controls.Add(btnObsDock);
 
-        var btnMinimizar = CriarBotaoCustom("📥  Minimizar para Tray", Color.FromArgb(41, 47, 66), new Point(15, 460));
+        var btnMinimizar = CriarBotaoCustom("📥  Minimizar para Tray", Color.FromArgb(41, 47, 66), new Point(15, 485));
         btnMinimizar.Click += (s, e) => { this.Hide(); };
         painelLateral.Controls.Add(btnMinimizar);
 
-        var btnSair = CriarBotaoCustom("❌  Sair e Desligar", Color.FromArgb(153, 27, 27), new Point(15, 510));
+        var btnSair = CriarBotaoCustom("❌  Sair e Desligar", Color.FromArgb(153, 27, 27), new Point(15, 530));
         btnSair.Click += (s, e) => EncerrarAplicacao();
         painelLateral.Controls.Add(btnSair);
 
@@ -356,9 +364,9 @@ public class PainelControleForm : Form
         // 4. Outputs NDI Mosaico
         try
         {
-            double fpsMosaico = VideoEngine.ObterFpsMosaico();
-            double fpsVertical = VideoEngine.ObterFpsVertical();
-            _lblFpsMosaico.Text = $"Mosaico Horiz: {fpsMosaico} FPS";
+            double fpsMosaico = AppConfig.MotorVideo == "gpu" ? VideoEngineGpu.ObterFpsMosaico() : VideoEngine.ObterFpsMosaico();
+            double fpsVertical = AppConfig.MotorVideo == "gpu" ? VideoEngineGpu.ObterFpsVertical() : VideoEngine.ObterFpsVertical();
+            _lblFpsMosaico.Text = $"Mosaico Horiz: {fpsMosaico} FPS ({(AppConfig.MotorVideo == "gpu" ? "GPU" : "CPU")})";
             _lblFpsVertical.Text = $"Mosaico Vert: {fpsVertical} FPS";
             
             int countCena = 0;
