@@ -101,12 +101,31 @@ A gravação individual (CFR) de cada feed NDI opera em segundo plano usando pip
 
 ---
 
+## Sincronização de Áudio e Vídeo (Auto Lip-Sync)
+
+O NDI Director implementa uma arquitetura completa de sincronização labial (Lip-Sync) em tempo real, especialmente desenhada para solucionar assimetrias de latência e rajadas de pacotes de participantes originados do **Microsoft Teams**:
+
+1. **Normalizador Elástico por Participante:** Cada feed do Teams é mantido suavemente em uma margem de segurança fixa de **40ms** (1.920 amostras a 48 kHz). Desvios de relógio (*clock drift*) e oscilações de rede são absorvidos via micro-resampling linear contínuo, sem descartes abruptos de áudio nem pausas bruscas.
+2. **Auto-Calibração de Latência de Vídeo:** O sistema mede dinamicamente o tempo exato decorrido desde a chegada dos frames de vídeo até a renderização e transmissão pelo motor de vídeo (GPU DirectX 11 ou CPU OpenCV). O mixer aplica automaticamente o atraso correspondente na saída de áudio para sincronia labial perfeita.
+3. **Thread Dedicada de Transmissão NDI (`MESA_NDI_AUDIO`):** O stream de áudio mixado roda em uma thread isolada de alta prioridade com temporizador de alta precisão (`Stopwatch`), transmitindo blocos a cada **20.0ms cravados** com carimbos monotônicos em ticks (`DateTime.UtcNow.Ticks`) alinhados com os quadros de vídeo.
+4. **Telemetria e Ajuste Fino na Interface:** O painel web e o OBS Dock exibem em tempo real o status de `LIP-SYNC: ~20ms (AUTO)` e a profundidade de buffer de cada participante (`🔊 40ms`). É possível alternar para modo manual e aplicar offset fino de $\pm 300\text{ms}$ pelo modal de configurações.
+
+> [!TIP]
+> **Como configurar no OBS Studio:**
+> - Nas propriedades das fontes NDI (`MESA_NDI_MOSAICO`, `MESA_NDI_VERTICAL` e `MESA_NDI_AUDIO`), configure a **Sincronização Áudio/Vídeo** como **`Timestamp da fonte NDI`** (*Source Timecode*).
+> - Nas *Propriedades de Áudio Avançadas* do OBS, mantenha o **Atraso de Sincronização** em **`0 ms`** (o NDI Director realiza todo o alinhamento de forma automática).
+
+---
+
 ## Configurações Persistentes (`ndi_director_config.json`)
 
 As configurações da aplicação são gerenciadas e armazenadas no arquivo `ndi_director_config.json` localizado no diretório de execução. O arquivo é atualizado automaticamente a cada mudança na interface:
 
 ```json
 {
+  "MotorVideo": "gpu",
+  "AutoLipSync": true,
+  "AtrasoAudioManualMs": 0,
   "CorFundoAtual": "verde",
   "FormatoAudioAtual": "aac",
   "ApagarTemporarios": true,
@@ -126,6 +145,9 @@ As configurações da aplicação são gerenciadas e armazenadas no arquivo `ndi
 ```
 
 ### Principais Parâmetros:
+* `MotorVideo`: Motor de composição de vídeo (`"gpu"` para Direct3D 11 / Direct2D acelerado, ou `"cpu"` para OpenCV / GDI+).
+* `AutoLipSync`: Ativa/desativa a auto-calibração de atraso de áudio em tempo real (`true` por padrão).
+* `AtrasoAudioManualMs`: Offset manual de atraso em milissegundos ($\pm 300\text{ms}$).
 * `CorFundoAtual`: Cor de fundo do canvas do mosaico (opções: `"cinza"`, `"verde"`, `"azul"`, `"preto"`, `"transparente"`), ideal para Chroma Key.
 * `QualidadeGravacao`: Define o fator de qualidade constante (CRF/QP) para as gravações (opções: `"alta"`, `"media"`, `"baixa"`).
 * `FormatoAudioAtual`: Formato temporário de áudio utilizado na captura (opções: `"aac"` ou `"pcm"`).

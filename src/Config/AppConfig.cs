@@ -30,6 +30,13 @@ public static class AppConfig
     public static ConcurrentDictionary<string, float> VolumesFontes = new();
     public static ConcurrentDictionary<string, int> NiveisVu = new();
     
+    // Configurações e Estado do Auto Lip-Sync (A/V Sync)
+    public static bool AutoLipSync = true;
+    public static int AtrasoAudioManualMs = 0;
+    public static int LatenciaVideoMedidaMs = 200;
+    private static double _latenciaFiltradaMs = 200.0;
+    public static readonly object LockLipSync = new();
+    
     public static readonly object LockFontes = new();
     public static readonly object LockVolumes = new();
     public static readonly object LockVu = new();
@@ -55,6 +62,33 @@ public static class AppConfig
     private const string CONFIG_FILE = "ndi_director_config.json";
     private static readonly object LockConfig = new();
 
+    public static void AtualizarLatenciaVideoMedida(int latenciaMs)
+    {
+        if (latenciaMs <= 0 || latenciaMs > 2000) return;
+
+        lock (LockLipSync)
+        {
+            // Filtro IIR passa-baixa (peso 0.05) para amortecer micro-flutuações e dar estabilidade
+            _latenciaFiltradaMs = (_latenciaFiltradaMs * 0.95) + (latenciaMs * 0.05);
+            LatenciaVideoMedidaMs = (int)Math.Round(_latenciaFiltradaMs);
+        }
+    }
+
+    public static int ObterAtrasoAudioEfetivoMs()
+    {
+        lock (LockLipSync)
+        {
+            if (AutoLipSync)
+            {
+                return Math.Clamp(LatenciaVideoMedidaMs + AtrasoAudioManualMs, 0, 1000);
+            }
+            else
+            {
+                return Math.Clamp(AtrasoAudioManualMs, 0, 1000);
+            }
+        }
+    }
+
     public static void SalvarConfiguracoes()
     {
         lock (LockConfig)
@@ -78,7 +112,9 @@ public static class AppConfig
                     LimiteSessoesNvenc = LimiteSessoesNvenc,
                     ApelidosFontes = new Dictionary<string, string>(ApelidosFontes),
                     VolumesFontes = new Dictionary<string, float>(VolumesFontes),
-                    MotorVideo = MotorVideo
+                    MotorVideo = MotorVideo,
+                    AutoLipSync = AutoLipSync,
+                    AtrasoAudioManualMs = AtrasoAudioManualMs
                 };
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
@@ -126,6 +162,8 @@ public static class AppConfig
                 CanvasAlturaVertical = data.CanvasAlturaVertical;
                 LimiteSessoesNvenc = data.LimiteSessoesNvenc > 0 ? data.LimiteSessoesNvenc : 8;
                 MotorVideo = (data.MotorVideo == "gpu") ? "gpu" : "cpu";
+                AutoLipSync = data.AutoLipSync;
+                AtrasoAudioManualMs = data.AtrasoAudioManualMs;
 
                 ApelidosFontes.Clear();
                 if (data.ApelidosFontes != null)
@@ -145,7 +183,7 @@ public static class AppConfig
                     }
                 }
 
-                Console.WriteLine($"[*] Configurações carregadas com sucesso de '{CONFIG_FILE}'");
+                Console.WriteLine($"[*] Configurações carregadas com sucesso de '{CONFIG_FILE}' (AutoLipSync: {AutoLipSync}, Offset: {AtrasoAudioManualMs}ms)");
             }
             catch (Exception ex)
             {

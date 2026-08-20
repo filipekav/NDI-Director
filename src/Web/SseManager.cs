@@ -220,6 +220,7 @@ public static class SseManager
                     }
 
                     var (nvencLoad, nvencSessions, gpuLoad, vramUsed, vramTotal) = NvidiaGpuMonitor.ObterMetricas();
+                    var buffersAudio = AppConfig.MixerGlobal.ObterStatusBuffers();
 
                     var metrics = new
                     {
@@ -234,7 +235,12 @@ public static class SseManager
                         gpuLoad = gpuLoad,
                         vramUsed = vramUsed,
                         vramTotal = vramTotal,
-                        motorVideo = motorVideoAtivo
+                        motorVideo = motorVideoAtivo,
+                        lipSyncMedidoMs = AppConfig.LatenciaVideoMedidaMs,
+                        lipSyncEfetivoMs = AppConfig.ObterAtrasoAudioEfetivoMs(),
+                        autoLipSync = AppConfig.AutoLipSync,
+                        atrasoAudioManualMs = AppConfig.AtrasoAudioManualMs,
+                        buffersAudio = buffersAudio
                     };
 
                     string payload = JsonSerializer.Serialize(metrics);

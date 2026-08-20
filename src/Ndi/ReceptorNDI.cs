@@ -21,6 +21,7 @@ public class ReceptorNDI
     public long AudioFrames { get; private set; } = 0;
     public long DroppedVideoFrames { get; private set; } = 0;
     public long DroppedAudioFrames { get; private set; } = 0;
+    public long UltimoFrameTimestampTicks { get; private set; } = 0;
     
     private IntPtr _pRecv = IntPtr.Zero;
     private Thread? _threadCapture;
@@ -132,6 +133,7 @@ public class ReceptorNDI
                         
                         // Expõe o buffer atualizado como FrameAtual
                         FrameAtual = backBuffer;
+                        UltimoFrameTimestampTicks = DateTime.UtcNow.Ticks;
 
                         // Alterna para o outro buffer para a próxima escrita
                         _useBufferA = !_useBufferA;

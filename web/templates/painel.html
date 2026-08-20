@@ -56,6 +56,15 @@
                             <span class="metric-value-sub" id="metric-nvenc-sessions">--</span>
                         </div>
                     </div>
+
+                    <!-- Grupo Lip-Sync (A/V Sync) -->
+                    <div class="metrics-group" id="metrics-lipsync-group">
+                        <div class="metric-item" title="Sincronização Labial (Auto Lip-Sync): Latência medida de vídeo e atraso de áudio compensado em tempo real">
+                            <span class="metric-label">LIP-SYNC:</span>
+                            <span class="metric-value" id="metric-lipsync" style="font-weight: 700; color: #10b981;">-- ms</span>
+                            <span class="metric-value-sub" id="metric-lipsync-mode">AUTO</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="sse-indicator" id="sse-indicator" style="margin-top: 0;">
@@ -111,6 +120,34 @@
                             <span class="format-check">✔</span>
                             AAC 192k <span class="format-badge lighter">Super Leve</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Seção 1.5: Sincronização Labial (Auto Lip-Sync) -->
+                <div class="config-section">
+                    <span class="config-label">⏱️ Sincronização Labial (Auto Lip-Sync):</span>
+                    <p class="config-desc">Compensa automaticamente a latência de vídeo da GPU/CPU em tempo real para sincronia labial perfeita. No OBS Studio, mantenha o atraso de sincronização em <strong>0 ms</strong>.</p>
+                    <div class="audio-format-selector">
+                        <button id="btn-lipsync-auto" class="btn-format active" onclick="definirModoLipSync(true)">
+                            <span class="format-check">✔</span>
+                            Auto-Calibração <span class="format-badge" id="badge-lipsync-auto-ms">~200ms</span>
+                        </button>
+                        <button id="btn-lipsync-manual" class="btn-format" onclick="definirModoLipSync(false)">
+                            <span class="format-check">✔</span>
+                            Modo Manual <span class="format-badge lighter">Offset Fixo</span>
+                        </button>
+                    </div>
+                    <div style="margin-top: 14px; background: rgba(15, 23, 42, 0.4); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span style="font-size: 0.85rem; color: #94a3b8;">Ajuste Fino Manual (Offset):</span>
+                            <span id="lipsync-offset-val" style="font-size: 0.9rem; font-weight: 700; color: #38bdf8;">0 ms</span>
+                        </div>
+                        <input type="range" id="input-lipsync-offset" min="-300" max="300" step="5" value="0" oninput="atualizarLabelLipSyncOffset(this.value)" onchange="aplicarLipSyncOffset(this.value)" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748b; margin-top: 4px;">
+                            <span>-300ms (Adiantar som)</span>
+                            <span>0ms (Padrão Auto)</span>
+                            <span>+300ms (Atrasar som)</span>
+                        </div>
                     </div>
                 </div>
 

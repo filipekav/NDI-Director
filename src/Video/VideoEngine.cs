@@ -154,22 +154,13 @@ public static class VideoEngine
         IntPtr pNdiSendV = NDIlib.send_create(ref sendSettingsV);
         Marshal.FreeHGlobal(sendSettingsV.p_ndi_name);
 
-        var sendSettingsA = new NDIlib.send_create_t
+        if (pNdiSend == IntPtr.Zero || pNdiSendV == IntPtr.Zero)
         {
-            p_ndi_name = Marshal.StringToHGlobalAnsi("MESA_NDI_AUDIO"),
-            clock_video = false,
-            clock_audio = false
-        };
-        IntPtr pNdiSendA = NDIlib.send_create(ref sendSettingsA);
-        Marshal.FreeHGlobal(sendSettingsA.p_ndi_name);
-
-        if (pNdiSend == IntPtr.Zero || pNdiSendV == IntPtr.Zero || pNdiSendA == IntPtr.Zero)
-        {
-            Console.WriteLine("[!] Erro fatal: Não foi possível instanciar os outputs NDI.");
+            Console.WriteLine("[!] Erro fatal: Não foi possível instanciar os outputs NDI de vídeo.");
             return;
         }
 
-        Console.WriteLine("[*] Outputs NDI 'MESA_NDI_MOSAICO', 'MESA_NDI_VERTICAL' e 'MESA_NDI_AUDIO' inicializados.");
+        Console.WriteLine("[*] Outputs NDI 'MESA_NDI_MOSAICO' e 'MESA_NDI_VERTICAL' inicializados (CPU).");
 
         int currentW = AppConfig.CanvasLarguraHorizontal;
         int currentH = AppConfig.CanvasAlturaHorizontal;
@@ -204,8 +195,6 @@ public static class VideoEngine
         // Inicializa os canvas estáticos persistentes
         _canvasPrincipal = new Mat(currentH, currentW, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
         _canvasVertical = new Mat(currentHV, currentWV, MatType.CV_8UC4, new Scalar(0, 0, 0, 255));
-
-        IntPtr pAudioBufferNativo = Marshal.AllocHGlobal(AudioMixer.TamanhoBloco * AudioMixer.CanaisSaida * sizeof(float));
 
         while (_running)
         {
@@ -243,6 +232,7 @@ public static class VideoEngine
             }
 
             var framesAtivos = new List<(string Nome, Mat Frame, string Apelido)>();
+            long menorTimestampChegadaTicks = long.MaxValue;
 
             lock (AppConfig.LockFontes)
             {
@@ -255,6 +245,11 @@ public static class VideoEngine
                         var frame = rec.ObterFrame() ?? new Mat(FramePretoPlaceholder, new Rect(0, 0, FramePretoPlaceholder.Width, FramePretoPlaceholder.Height));
                         string apelido = AppConfig.ApelidosFontes.TryGetValue(nome, out var ap) ? ap : "";
                         framesAtivos.Add((nome, frame, apelido));
+
+                        if (rec.UltimoFrameTimestampTicks > 0 && rec.UltimoFrameTimestampTicks < menorTimestampChegadaTicks)
+                        {
+                            menorTimestampChegadaTicks = rec.UltimoFrameTimestampTicks;
+                        }
                     }
                 }
             }
@@ -265,9 +260,6 @@ public static class VideoEngine
                 var col = AppConfig.CoresBackground[AppConfig.CorFundoAtual];
                 bgScalar = new Scalar(col.B, col.G, col.R, col.A);
             }
-
-            // Timecode lógico comum de alta precisão em ticks (100ns)
-            long timecodeComum = DateTime.UtcNow.Ticks;
 
             // -------------------------------------------------------------
             // Renderiza Canvas Principal
@@ -332,8 +324,17 @@ public static class VideoEngine
                 }
             }
 
+            // Timecode lógico real e medição da latência física total (chegada -> fila -> render CPU -> envio NDI)
+            long timecodeEnvio = DateTime.UtcNow.Ticks;
+
+            if (menorTimestampChegadaTicks < long.MaxValue)
+            {
+                int latenciaMs = (int)((timecodeEnvio - menorTimestampChegadaTicks) / TimeSpan.TicksPerMillisecond);
+                AppConfig.AtualizarLatenciaVideoMedida(latenciaMs);
+            }
+
             videoFrame.p_data = canvas.Data;
-            videoFrame.timecode = timecodeComum;
+            videoFrame.timecode = timecodeEnvio;
             NDIlib.send_send_video_v2(pNdiSend, ref videoFrame);
             _contadorFramesMosaico++;
 
@@ -368,32 +369,9 @@ public static class VideoEngine
             }
 
             videoFrameV.p_data = canvasV.Data;
-            videoFrameV.timecode = timecodeComum;
+            videoFrameV.timecode = timecodeEnvio;
             NDIlib.send_send_video_v2(pNdiSendV, ref videoFrameV);
             _contadorFramesVertical++;
-
-            // -------------------------------------------------------------
-            // Envia áudio mixado acumulado no mixer
-            // -------------------------------------------------------------
-            while (AppConfig.MixerGlobal.FilaSaida.TryDequeue(out float[]? blocoAudio))
-            {
-                if (AppConfig.HabilitarLogsDiagnostico)
-                {
-                    Console.WriteLine($"[DEBUG-AUDIO] Enviando bloco de audio mixado via NDI. Samples={AudioMixer.TamanhoBloco}");
-                }
-                Marshal.Copy(blocoAudio, 0, pAudioBufferNativo, blocoAudio.Length);
-
-                var audioFrame = new NDIlib.audio_frame_v2_t
-                {
-                    sample_rate = AudioMixer.SampleRateSaida,
-                    no_channels = AudioMixer.CanaisSaida,
-                    no_samples = AudioMixer.TamanhoBloco,
-                    timecode = NDIlib.send_timecode_synthesize,
-                    p_data = pAudioBufferNativo,
-                    channel_stride_in_bytes = AudioMixer.TamanhoBloco * sizeof(float)
-                };
-                NDIlib.send_send_audio_v2(pNdiSendA, ref audioFrame);
-            }
 
             foreach (var item in framesAtivos)
             {
@@ -407,11 +385,6 @@ public static class VideoEngine
 
         NDIlib.send_destroy(pNdiSend);
         NDIlib.send_destroy(pNdiSendV);
-        if (pNdiSendA != IntPtr.Zero)
-        {
-            NDIlib.send_destroy(pNdiSendA);
-        }
-        Marshal.FreeHGlobal(pAudioBufferNativo);
     }
 
     private static void DesenharStandbyScreen(Mat canvas, bool isVertical, int contadorFrames)

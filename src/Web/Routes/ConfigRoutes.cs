@@ -25,7 +25,11 @@ public static class ConfigRoutes
                 canvasLarguraVertical = AppConfig.CanvasLarguraVertical,
                 canvasAlturaVertical = AppConfig.CanvasAlturaVertical,
                 limiteSessoesNvenc = AppConfig.LimiteSessoesNvenc,
-                motorVideo = AppConfig.MotorVideo
+                motorVideo = AppConfig.MotorVideo,
+                autoLipSync = AppConfig.AutoLipSync,
+                atrasoAudioManualMs = AppConfig.AtrasoAudioManualMs,
+                latenciaVideoMedidaMs = AppConfig.LatenciaVideoMedidaMs,
+                atrasoAudioEfetivoMs = AppConfig.ObterAtrasoAudioEfetivoMs()
             });
         });
 
@@ -225,6 +229,32 @@ public static class ConfigRoutes
                 return Results.Json(new { status = "ok", motorVideo = valor });
             }
             return Results.BadRequest(new { status = "error", message = "Motor inválido. Escolha 'cpu' ou 'gpu'." });
+        });
+
+        // API: Definir Lip-Sync (auto e offset manual)
+        app.MapPost("/api/configuracoes/definir_lipsync/{auto}/{offset}", (bool auto, int offset) =>
+        {
+            if (offset < -500 || offset > 500)
+            {
+                return Results.BadRequest(new { status = "error", message = "Offset de Lip-Sync inválido. Deve ser entre -500ms e +500ms." });
+            }
+
+            AppConfig.AutoLipSync = auto;
+            AppConfig.AtrasoAudioManualMs = offset;
+
+            Console.WriteLine($"[*] Lip-Sync alterado: Auto={auto}, Offset={offset}ms, Efetivo={AppConfig.ObterAtrasoAudioEfetivoMs()}ms");
+            AppConfig.SalvarConfiguracoes();
+            SseManager.NotificarClientes();
+            SseManager.LogAtividade($"Lip-Sync alterado: {(auto ? "Automático" : "Manual")} (Atraso efetivo: {AppConfig.ObterAtrasoAudioEfetivoMs()}ms).", "normal");
+
+            return Results.Json(new
+            {
+                status = "ok",
+                autoLipSync = AppConfig.AutoLipSync,
+                atrasoAudioManualMs = AppConfig.AtrasoAudioManualMs,
+                latenciaVideoMedidaMs = AppConfig.LatenciaVideoMedidaMs,
+                atrasoAudioEfetivoMs = AppConfig.ObterAtrasoAudioEfetivoMs()
+            });
         });
     }
 }

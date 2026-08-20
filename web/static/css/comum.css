@@ -238,6 +238,31 @@ body.modo-dock .status-badge {
 .active .status-badge { color: #10b981; }
 .erro  .status-badge  { color: var(--error); }
 
+.audio-buffer-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: none;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    margin-left: 6px;
+    margin-right: 6px;
+    letter-spacing: 0;
+    transition: all 0.3s ease;
+}
+.audio-buffer-badge.ok {
+    border-color: rgba(52, 211, 153, 0.4);
+    color: #34d399;
+}
+.audio-buffer-badge.alinhando {
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fbbf24;
+}
+
 .status-dot { 
     border-radius: 50%; 
     background-color: var(--text-muted); 

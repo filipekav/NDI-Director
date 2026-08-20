@@ -382,6 +382,11 @@ function carregarConfiguracoes() {
         if (inputWV && dados.canvasLarguraVertical !== undefined) inputWV.value = dados.canvasLarguraVertical;
         if (inputHV && dados.canvasAlturaVertical !== undefined) inputHV.value = dados.canvasAlturaVertical;
 
+        // Atualiza controles de Lip-Sync
+        if (dados.autoLipSync !== undefined) {
+            atualizarBotoesLipSync(dados.autoLipSync, dados.atrasoAudioManualMs || 0);
+        }
+
         // Atualiza botão do layout no header
         const btnLayout = document.getElementById('btn-layout-toggle');
         if (btnLayout) {
@@ -394,6 +399,50 @@ function carregarConfiguracoes() {
             }
         }
     });
+}
+
+function definirModoLipSync(auto) {
+    const offset = parseInt(document.getElementById('input-lipsync-offset')?.value) || 0;
+    enviarConfigLipSync(auto, offset);
+}
+
+function atualizarLabelLipSyncOffset(valor) {
+    const label = document.getElementById('lipsync-offset-val');
+    if (label) {
+        const num = parseInt(valor) || 0;
+        label.textContent = (num > 0 ? `+${num}` : `${num}`) + ' ms';
+    }
+}
+
+function aplicarLipSyncOffset(valor) {
+    const auto = document.getElementById('btn-lipsync-auto')?.classList.contains('active') ?? true;
+    const offset = parseInt(valor) || 0;
+    enviarConfigLipSync(auto, offset);
+}
+
+function enviarConfigLipSync(auto, offset) {
+    fetch(`/api/configuracoes/definir_lipsync/${auto}/${offset}`, { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        atualizarBotoesLipSync(data.autoLipSync, data.atrasoAudioManualMs);
+    })
+    .catch(err => console.error("Erro ao definir Lip-Sync:", err));
+}
+
+function atualizarBotoesLipSync(auto, offset) {
+    const btnAuto = document.getElementById('btn-lipsync-auto');
+    const btnManual = document.getElementById('btn-lipsync-manual');
+    const slider = document.getElementById('input-lipsync-offset');
+    const label = document.getElementById('lipsync-offset-val');
+
+    if (btnAuto && btnManual) {
+        btnAuto.classList.toggle('active', auto);
+        btnManual.classList.toggle('active', !auto);
+    }
+    if (slider) slider.value = offset;
+    if (label) {
+        label.textContent = (offset > 0 ? `+${offset}` : `${offset}`) + ' ms';
+    }
 }
 
 function definirFormatoAudio(formato) {
@@ -793,6 +842,48 @@ function conectarSSE() {
                 if (gpuGroup) gpuGroup.style.display = 'flex';
             } else {
                 if (gpuGroup) gpuGroup.style.display = 'none';
+            }
+
+            // Atualiza indicador de Lip-Sync no Header e Modal
+            const lipSyncVal = document.getElementById('metric-lipsync');
+            const lipSyncMode = document.getElementById('metric-lipsync-mode');
+            const badgeLipSyncAuto = document.getElementById('badge-lipsync-auto-ms');
+
+            if (metrics.lipSyncEfetivoMs !== undefined) {
+                if (lipSyncVal) lipSyncVal.textContent = metrics.lipSyncEfetivoMs + ' ms';
+                if (lipSyncMode) {
+                    lipSyncMode.textContent = metrics.autoLipSync ? 'AUTO' : 'MANUAL';
+                    lipSyncMode.style.color = metrics.autoLipSync ? '#10b981' : '#38bdf8';
+                }
+            }
+            if (badgeLipSyncAuto && metrics.lipSyncMedidoMs !== undefined) {
+                badgeLipSyncAuto.textContent = `~${metrics.lipSyncMedidoMs}ms`;
+            }
+
+            // Atualiza badges de buffer de áudio em cada card de participante
+            if (metrics.buffersAudio) {
+                for (const [nome, info] of Object.entries(metrics.buffersAudio)) {
+                    const cardId = 'card-' + nome.replace(/[^a-zA-Z0-9]/g, '_');
+                    const card = document.getElementById(cardId);
+                    if (card) {
+                        let audioBadge = card.querySelector('.audio-buffer-badge');
+                        if (!audioBadge) {
+                            const statusBadge = card.querySelector('.status-badge');
+                            if (statusBadge) {
+                                audioBadge = document.createElement('span');
+                                audioBadge.className = 'audio-buffer-badge';
+                                statusBadge.appendChild(audioBadge);
+                            }
+                        }
+                        if (audioBadge) {
+                            const bufferMs = info.bufferMs !== undefined ? info.bufferMs : (info.Item1 !== undefined ? info.Item1 : 0);
+                            const bufferStatus = info.status !== undefined ? info.status : (info.Item2 !== undefined ? info.Item2 : 'Estável');
+                            audioBadge.textContent = `🔊 ${bufferMs}ms`;
+                            audioBadge.title = `Buffer de Áudio Interno: ${bufferMs}ms (${bufferStatus})`;
+                            audioBadge.className = `audio-buffer-badge ${bufferMs >= 30 && bufferMs <= 60 ? 'ok' : 'alinhando'}`;
+                        }
+                    }
+                }
             }
 
             // Atualiza status de rede para feeds ativos no payload

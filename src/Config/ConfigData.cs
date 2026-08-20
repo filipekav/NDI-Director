@@ -16,4 +16,6 @@ public class ConfigData
     public Dictionary<string, string> ApelidosFontes { get; set; } = new();
     public Dictionary<string, float> VolumesFontes { get; set; } = new();
     public string MotorVideo { get; set; } = "cpu"; // "cpu" (OpenCV+GDI+) ou "gpu" (DirectX 11+Direct2D)
+    public bool AutoLipSync { get; set; } = true;
+    public int AtrasoAudioManualMs { get; set; } = 0;
 }

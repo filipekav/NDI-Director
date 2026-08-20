@@ -13,6 +13,10 @@
   "CanvasAlturaVertical": 850,
   "LimiteSessoesNvenc": 8,
   "ApelidosFontes": {},
-  "VolumesFontes": {},
-  "MotorVideo": "gpu"
+  "VolumesFontes": {
+    "PC-FILIPE (MS Teams - Isac weller Magnata)": 1
+  },
+  "MotorVideo": "gpu",
+  "AutoLipSync": true,
+  "AtrasoAudioManualMs": 0
 }
